@@ -47,11 +47,3 @@ def test_SteerRamp_derivatives():
 
     assert steer_ramp.eval(t_end+dt, False)[0] == dv
     assert steer_ramp.eval(t_end+dt, False)[1] == 0.0
-
-    # assert steer_ramp.eval(t_end)[0] > 0
-    # assert steer_ramp.eval(t_end-dt)[1] == 0
-    # assert steer_ramp.eval(t_end, False)[0] == dv
-
-    # assert steer_ramp.eval(t_end)[0] == 0.0
-    # assert steer_ramp.eval(t_end)[1] == 0.0
-
