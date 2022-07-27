@@ -1,0 +1,4 @@
+casadi==3.5.5.post2
+numpy==1.17.4
+plotly==5.6.0
+setuptools==45.2.0

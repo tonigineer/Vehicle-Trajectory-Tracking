@@ -1,0 +1,11 @@
+__pycache__
+
+pytest_cache
+
+.tox
+.ipynb
+.vscode
+
+*.egg-info
+
+.coverage
