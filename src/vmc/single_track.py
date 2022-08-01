@@ -30,7 +30,7 @@ class FSVehSingleTrack(BaseModel):
     x = ct.struct_symMX(['X', 'Y', 'psi', 'psip', 'vx', 'vy', 'delta_v'])
     u = ct.struct_symMX(['delta_vp', 'ax'])
 
-    state_names = ['Position in x', 'Position in y', 'Yaw angel', 'Yaw rate',
+    state_names = ['Position in x', 'Position in y', 'Yaw angle', 'Yaw rate',
                    'Velocity in x (vehicle)', 'Velocity in y (vehicle)',
                    'Steering angle']
     state_units = ['m', 'm', 'rad', 'rad/s', 'm/s', 'm/s', 'rad']
@@ -77,20 +77,14 @@ class FSVehSingleTrack(BaseModel):
             f(xk+1) = A*xk + B*uk
 
         NOTE: Consider to use only CasADi function. And return
-        state vector as cs.vectcat
+              state vector as cs.vectcat
         """
         psi, psip, vx, vy, delta_v = x['psi'], x['psip'], x['vx'], x['vy'], x['delta_v']
         delta_vp, ax = u['delta_vp'], u['ax']
 
-        # Inputs
-        # delta_v = np.clip(delta_v+delta_vp, -self.delta_v_max, self.delta_v_max)
-        # ax = np.clip(ax, self.ax_min, self.ax_max)
-
-        # delta_v = delta_v+delta_vp
-
         # Tire forces
-        alpha_f = cs.atan2(vy-self.l_r*psip, vx)
-        alpha_r = cs.atan2(vy+self.l_f*psip, vx) - delta_v
+        alpha_f = delta_v - cs.atan(self.l_f*psip+vy / vx)
+        alpha_r = - cs.atan(vy-self.l_r*psip / vx)
 
         Fy_f = alpha_f * self.calpha_f
         Fy_r = alpha_r * self.calpha_r
@@ -98,9 +92,12 @@ class FSVehSingleTrack(BaseModel):
         # Derivatives
         xp = vx*np.cos(psi) - vy*np.sin(psi)
         yp = vx*np.sin(psi) + vy*np.cos(psi)
+
         psipp = (Fy_f*self.l_f - Fy_r*self.l_r) / self.J_z
-        # vxp = ax                                # TODO: not suitable for high dynamics, because tire might be saturated
-        vyp = (Fy_f+Fy_r) / self.m - vx*psip    # Calculation differs quite a lot from Lucas' implementation
+        vyp = (Fy_f+Fy_r) / self.m - vx*psip
+
+        # TODO: vxp = ax >> not suitable for high dynamics, because
+        # tires might be saturated
 
         rhs = cs.vertcat(xp, yp, psip, psipp, ax, vyp, delta_vp)
         return cs.Function('f', [x, u], [rhs], ['x', 'u'], ['dx/dt'])
