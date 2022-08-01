@@ -5,7 +5,7 @@ from vmc import Simulator, SteerRamp
 
 
 if __name__ == "__main__":
-    steer_ramp = SteerRamp()
+    steer_ramp = SteerRamp(derivative=True)
     fs_veh_model = FSVehSingleTrack()
 
     Sim = Simulator(model=fs_veh_model, scenario=steer_ramp)

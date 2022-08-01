@@ -10,12 +10,15 @@ class SteerRamp():
 
     Eval function returns input vector `u = [delta_v, ax]^T`
     for given time step `t`.
+
+    Optional parameter `derivative==True` returns the derivative of
+    the steering ramp, `steering velocity`.
     """
 
     name = "Open loop steering ramp."
 
     def __init__(self, *, dt=0.01, t_start=0, t_end=10, delta_v_max=np.deg2rad(4),
-                 delta_vp=np.deg2rad(2), vx=100/3.6):
+                 delta_vp=np.deg2rad(2), vx=100/3.6, derivative=False):
         """Initialize scenario for an open loop steering ramp."""
         self.dt = dt
         self.t_start = t_start
@@ -23,19 +26,12 @@ class SteerRamp():
         self.delta_v_max = delta_v_max
         self.delta_vp = delta_vp
         self.vx = vx
+        self.derivative = derivative
 
         self.x0 = np.array([[0, 0, 0, 0, self.vx, 0, 0]]).T
 
-    def eval(self, t, derivatives=True):
-        """Return input vector `u` according to time step.
-
-        Arguments
-        ---------
-        `t : float`
-            time step to get inputs for
-        `velocity : bool`
-            flag to return derivatives
-        """
+    def eval(self, t):
+        """Return input vector `u` according to time step `t`."""
         delta_v = min(
             max(t-self.t_start, 0) * self.delta_vp, self.delta_v_max
         )
@@ -44,7 +40,7 @@ class SteerRamp():
         )
         delta_vp = (delta_v-delta_v_prev) / self.dt
 
-        steering_input = delta_vp if derivatives else delta_v
+        steering_input = delta_vp if self.derivative else delta_v
         return np.array([[steering_input, 0]]).T
 
 

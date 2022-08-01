@@ -79,8 +79,8 @@ class FSVehSingleTrack(BaseModel):
         NOTE: Consider to use only CasADi function. And return
         state vector as cs.vectcat
         """
-        _, _, psi, psip, vx, vy, delta_v = 0, 0, 0, 0, 0, 0, x['delta_v']
-        delta_vp, ax = u['delta_vp'], 0
+        psi, psip, vx, vy, delta_v = x['psi'], x['psip'], x['vx'], x['vy'], x['delta_v']
+        delta_vp, ax = u['delta_vp'], u['ax']
 
         # Inputs
         # delta_v = np.clip(delta_v+delta_vp, -self.delta_v_max, self.delta_v_max)
