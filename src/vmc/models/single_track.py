@@ -4,7 +4,7 @@ import casadi as cs
 import casadi.tools as ct
 import numpy as np
 
-from vmc.common import BaseModel
+from vmc.models.base import BaseModel
 
 
 class FSVehSingleTrack(BaseModel):

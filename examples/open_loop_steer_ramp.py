@@ -1,7 +1,8 @@
 """Run open loop maneuver."""
 
-from vmc import FSVehSingleTrack
-from vmc import Simulator, SteerRamp
+from vmc.models import FSVehSingleTrack
+from vmc.simulation import Simulator
+from vmc.controller import SteerRamp
 
 
 if __name__ == "__main__":

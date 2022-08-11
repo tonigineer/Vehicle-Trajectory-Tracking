@@ -2,46 +2,8 @@
 
 import numpy as np
 
-from vmc.evaluation import Evaluation, ScatterEntry, SubplotLayout
-
-
-class SteerRamp():
-    """Steering ramp at constant velocity as open loop scenario.
-
-    Eval function returns input vector `u = [delta_v, ax]^T`
-    for given time step `t`.
-
-    Optional parameter `derivative==True` returns the derivative of
-    the steering ramp, `steering velocity`.
-    """
-
-    name = "Open loop steering ramp."
-
-    def __init__(self, *, dt=0.01, t_start=0, t_end=10, delta_v_max=np.deg2rad(4),
-                 delta_vp=np.deg2rad(2), vx=100/3.6, derivative=False):
-        """Initialize scenario for an open loop steering ramp."""
-        self.dt = dt
-        self.t_start = t_start
-        self.t_end = t_end
-        self.delta_v_max = delta_v_max
-        self.delta_vp = delta_vp
-        self.vx = vx
-        self.derivative = derivative
-
-        self.x0 = np.array([[0, 0, 0, 0, self.vx, 0, 0]]).T
-
-    def eval(self, t):
-        """Return input vector `u` according to time step `t`."""
-        delta_v = min(
-            max(t-self.t_start, 0) * self.delta_vp, self.delta_v_max
-        )
-        delta_v_prev = min(
-            max(t-self.t_start-self.dt, 0) * self.delta_vp, self.delta_v_max
-        )
-        delta_vp = (delta_v-delta_v_prev) / self.dt
-
-        steering_input = delta_vp if self.derivative else delta_v
-        return np.array([[steering_input, 0]]).T
+from vmc.evaluation.evaluation import Evaluation, ScatterEntry, SubplotLayout
+from vmc.evaluation.animation import AnimateVehicle
 
 
 class Simulator():
@@ -55,6 +17,8 @@ class Simulator():
     def __prepare_run(self):
         self.exec_time_sim = 0
         self.exec_time_control = 0
+
+        self.ani = AnimateVehicle(dt=self.model.dt, draw_rate=0.1)
 
         self.step = 0
         self.steps = int(self.scenario.t_end/self.model.dt) + 1
@@ -79,11 +43,16 @@ class Simulator():
             uk = self.scenario.eval(t)
             xk = self.model.dxdt_nominal(xk, uk)
 
+            # avoid floating point arithmetic errors in t
+            self.step += 1
+            t = self.step*self.model.dt
+
             # Collect simulation data
-            t += self.model.dt
             self.sim['x'][k+1, :, :] = xk
             self.sim['u'][k, :, :] = uk
             self.sim['t'][k+1, :] = t
+
+            self.ani.draw_next_frame(self.step, xk, uk)
 
     def show_states_and_input(self):
         """Visualize results of simulation.

@@ -8,7 +8,7 @@ class BaseModel:
 
     @staticmethod
     def integration(dt, f, x, u):
-        """Define `Runge-Kutte-4` integrator.
+        """Define `Runge-Kutta-4` integrator.
 
         Normally, CasADi uses SUNIDALS integrator, which comes
         with an additional overhead. So, using this manual integration
