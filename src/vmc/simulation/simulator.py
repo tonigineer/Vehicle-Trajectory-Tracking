@@ -9,6 +9,8 @@ from vmc.evaluation.animation import AnimateVehicle
 class Simulator():
     """Framework to run simulation of models with a desired scenario."""
 
+    enable_animation = True
+
     def __init__(self, *, model, scenario):
         """Initiate class with model."""
         self.model = model
@@ -40,7 +42,7 @@ class Simulator():
 
         for k in range(self.steps-1):
             # Calculate inputs and advance a time step
-            uk = self.scenario.eval(t)
+            uk, ref = self.scenario.eval(t, xk)
             xk = self.model.dxdt_nominal(xk, uk)
 
             # avoid floating point arithmetic errors in t
@@ -52,7 +54,8 @@ class Simulator():
             self.sim['u'][k, :, :] = uk
             self.sim['t'][k+1, :] = t
 
-            self.ani.draw_next_frame(self.step, xk, uk)
+            if self.enable_animation:
+                self.ani.draw_next_frame(self.step, xk, uk)
 
     def show_states_and_input(self):
         """Visualize results of simulation.

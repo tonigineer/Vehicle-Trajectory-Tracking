@@ -33,8 +33,10 @@ class SteerRamp():
 
         self.x0 = np.array([[0, 0, 0, 0, self.vx, 0, 0]]).T
 
-    def eval(self, t) -> np.ndarray:
+    def eval(self, **kargs) -> np.ndarray:
         """Return input vector `u` according to time step `t`."""
+        t = kargs['t']
+
         delta_v = min(
             max(t-self.t_start, 0) * self.delta_vp, self.delta_v_max
         )

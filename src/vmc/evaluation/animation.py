@@ -146,7 +146,7 @@ class AnimateVehicle:
             return
 
         X, Y, psi = np.array(xk)[0:3]
-        delta_v = np.array(uk)[0]
+        # delta_v = np.array(uk)[0]
 
         self.__draw_vehicle(X, Y, psi)
 
@@ -156,15 +156,15 @@ class AnimateVehicle:
         self._rescale('fixed-margin')
 
 
-if __name__ == "__main__":
-    import time
+# if __name__ == "__main__":
+#     import time
 
-    # Draw vehicle and make full rotation from east to east
-    heading_angle = np.linspace(0, np.pi*2, 1000)
-    ani = AnimateVehicle(dt=0.01, draw_rate=0.1)
+#     # Draw vehicle and make full rotation from east to east
+#     heading_angle = np.linspace(0, np.pi*2, 1000)
+#     ani = AnimateVehicle(dt=0.01, draw_rate=0.1)
 
-    for idx, psi in enumerate(heading_angle):
-        xk = [0, 0, psi]
-        uk = [0, 0]
-        ani.draw_next_frame(step=idx, xk=xk, uk=uk)
-        time.sleep(0.01)
+#     for idx, psi in enumerate(heading_angle):
+#         xk = [0, 0, psi]
+#         uk = [0, 0]
+#         ani.draw_next_frame(step=idx, xk=xk, uk=uk)
+#         time.sleep(0.01)

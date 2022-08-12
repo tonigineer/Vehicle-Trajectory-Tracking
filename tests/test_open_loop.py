@@ -17,17 +17,17 @@ def test_SteerRamp():
     steer_ramp = SteerRamp(dt=dt, t_start=t_start, t_end=t_end,
                            delta_v_max=dv, delta_vp=dvp, derivative=False)
 
-    assert eps_float_equality(steer_ramp.eval(t_start)[0], 0.0)
-    assert eps_float_equality(steer_ramp.eval(t_start)[1], 0.0)
+    assert eps_float_equality(steer_ramp.eval(t=t_start)[0], 0.0)
+    assert eps_float_equality(steer_ramp.eval(t=t_start)[1], 0.0)
 
-    assert steer_ramp.eval(t_start+dt)[0] > 0.0
-    assert eps_float_equality(steer_ramp.eval(t_start+dt)[1], 0.0)
+    assert steer_ramp.eval(t=t_start+dt)[0] > 0.0
+    assert eps_float_equality(steer_ramp.eval(t=t_start+dt)[1], 0.0)
 
-    assert eps_float_equality(steer_ramp.eval(t_start+dv/dvp)[0], dv)
-    assert eps_float_equality(steer_ramp.eval(t_start+dv/dvp)[1], 0.0)
+    assert eps_float_equality(steer_ramp.eval(t=t_start+dv/dvp)[0], dv)
+    assert eps_float_equality(steer_ramp.eval(t=t_start+dv/dvp)[1], 0.0)
 
-    assert eps_float_equality(steer_ramp.eval(t_end)[0], dv)
-    assert eps_float_equality(steer_ramp.eval(t_end)[1], 0.0)
+    assert eps_float_equality(steer_ramp.eval(t=t_end)[0], dv)
+    assert eps_float_equality(steer_ramp.eval(t=t_end)[1], 0.0)
 
 
 def test_SteerRamp_derivative():
@@ -41,14 +41,14 @@ def test_SteerRamp_derivative():
     steer_ramp = SteerRamp(dt=dt, t_start=t_start, t_end=t_end,
                            delta_v_max=dv, delta_vp=dvp, derivative=True)
 
-    assert eps_float_equality(steer_ramp.eval(t_start)[0], 0.0)
-    assert eps_float_equality(steer_ramp.eval(t_start)[1], 0.0)
+    assert eps_float_equality(steer_ramp.eval(t=t_start)[0], 0.0)
+    assert eps_float_equality(steer_ramp.eval(t=t_start)[1], 0.0)
 
-    assert steer_ramp.eval(t_start+dt)[0] > 0.0
-    assert eps_float_equality(steer_ramp.eval(t_start+dt)[1], 0.0)
+    assert steer_ramp.eval(t=t_start+dt)[0] > 0.0
+    assert eps_float_equality(steer_ramp.eval(t=t_start+dt)[1], 0.0)
 
-    assert eps_float_equality(steer_ramp.eval(t_start+dv/dvp)[0], dvp)
-    assert eps_float_equality(steer_ramp.eval(t_start+dv/dvp)[1], 0.0)
+    assert eps_float_equality(steer_ramp.eval(t=t_start+dv/dvp)[0], dvp)
+    assert eps_float_equality(steer_ramp.eval(t=t_start+dv/dvp)[1], 0.0)
 
-    assert eps_float_equality(steer_ramp.eval(t_end)[0], 0.0)
-    assert eps_float_equality(steer_ramp.eval(t_end)[1], 0.0)
+    assert eps_float_equality(steer_ramp.eval(t=t_end)[0], 0.0)
+    assert eps_float_equality(steer_ramp.eval(t=t_end)[1], 0.0)

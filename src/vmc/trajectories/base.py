@@ -128,6 +128,11 @@ class OfflineReference():
         self.ay_max = max(self.t.v**2 * self.t.kappa)
         self.vx_max = max(self.t.v)
 
+        self.x0 = np.array([[
+            self.t.X[0], self.t.Y[0], self.t.psi[0], 0, self.t.v[0], 0, 0
+        ]])
+
+    
     def eval(self, position: Position):
         """Return a segment of reference according to current position."""
         localization_idx = self.__localize_on_trajectory(
@@ -149,15 +154,13 @@ class OfflineReference():
 
 
 # if __name__ == "__main__":
-#     track_filepath = './examples/tracks/Algarve_Internation_Circuit_02g_02g_128.json'
+#     track_filepath = './examples/tracks/Algarve_International_Circuit_02g_02g_128.json'
 #     Ref = OfflineReference(track_filepath, 20)
 
-#     n = Node(1,1,0,0,0,0,0)
+#     pos = Position(1, 1)
 
 #     from time import perf_counter
-#     a = perf_counter()
+#     start = perf_counter()
 #     c = Ref.eval(n)
 #     print(c)
-#     print(perf_counter() - a)
-
-#     pass
+#     print(perf_counter() - start)
