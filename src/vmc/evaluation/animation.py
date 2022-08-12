@@ -1,6 +1,5 @@
 """Main module for animation tasks."""
 
-from sys import implementation
 import numpy as np
 import matplotlib.pyplot as plt
 

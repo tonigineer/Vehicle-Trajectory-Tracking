@@ -3,7 +3,6 @@
 import numpy as np
 
 from misc import eps_float_equality
-
 from vmc.controller import SteerRamp
 
 
