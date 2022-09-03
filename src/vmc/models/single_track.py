@@ -14,29 +14,28 @@ class FSVehSingleTrack(BaseModel):
         `xk+1 = fd(xk, uk)`
 
     State vector:
-        `x = [x, y, psi, psip, vx, vy, delta_v]^T`
+        `x = [x, y, psi, psip, vx, vy]^T`
 
     Input vector:
-        `u = [delta_vp, ax]^T`
+        `u = [delta_v, ax]^T`
     """
 
     # System
-    Nx = 7
+    Nx = 6
     Nu = 2
 
     dt = 0.01
 
     # Symbolics for CasADI
-    x = ct.struct_symMX(['X', 'Y', 'psi', 'psip', 'vx', 'vy', 'delta_v'])
-    u = ct.struct_symMX(['delta_vp', 'ax'])
+    x = ct.struct_symMX(['X', 'Y', 'psi', 'psip', 'vx', 'vy'])
+    u = ct.struct_symMX(['delta_v', 'ax'])
 
     state_names = ['Position in x', 'Position in y', 'Yaw angle', 'Yaw rate',
-                   'Velocity in x (vehicle)', 'Velocity in y (vehicle)',
-                   'Steering angle']
+                   'Velocity in x (vehicle)', 'Velocity in y (vehicle)']
     state_units = ['m', 'm', 'rad', 'rad/s', 'm/s', 'm/s', 'rad']
 
-    input_names = ['Steering change', 'Acceleration']
-    input_units = ['rad/s', 'm/ss']
+    input_names = ['Steering angle', 'Acceleration']
+    input_units = ['rad', 'm/ss']
 
     # Parameter
     m = 2900            # mass [kg]
@@ -79,8 +78,13 @@ class FSVehSingleTrack(BaseModel):
         NOTE: Consider to use only CasADi function. And return
               state vector as cs.vectcat
         """
-        psi, psip, vx, vy, delta_v = x['psi'], x['psip'], x['vx'], x['vy'], x['delta_v']
-        delta_vp, ax = u['delta_vp'], u['ax']
+        psi, psip, vx, vy = x['psi'], x['psip'], x['vx'], x['vy']
+        delta_v, ax = u['delta_v'], u['ax']
+
+        # Important, change heading north to half pi and not 0!
+        # due to mathematical reason. Trajectory and plots are all
+        # based on psi == 0 when heading north.
+        psi += np.pi/2
 
         # Tire forces
         alpha_f = delta_v - cs.atan(self.l_f*psip+vy / vx)
@@ -99,7 +103,7 @@ class FSVehSingleTrack(BaseModel):
         # TODO: vxp = ax >> not suitable for high dynamics, because
         # tires might be saturated
 
-        rhs = cs.vertcat(xp, yp, psip, psipp, ax, vyp, delta_vp)
+        rhs = cs.vertcat(xp, yp, psip, psipp, ax, vyp)
         return cs.Function('f', [x, u], [rhs], ['x', 'u'], ['dx/dt'])
 
 

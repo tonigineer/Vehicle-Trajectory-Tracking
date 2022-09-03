@@ -98,6 +98,54 @@ class Evaluation:
         fig.update_layout(**asdict(layout))
         fig.show()
 
+    @classmethod
+    def tracking_plot(cls, sim, ref, layout: SubplotLayout):
+        """Create page with subplots.
+
+        Parameter
+        ---------
+            data : list
+                List of ScatterEntry items.
+
+            columns : int
+                Number of columns.
+        """
+        ref_full = cls.__scatter_plot(
+            x=ref.X, y=ref.Y,
+            name='Complete reference trajectory',
+            showlegend=True,
+            color='#3498db'
+        )
+
+        x = sim['xk'][:, 0, 0]
+        y = sim['xk'][:, 1, 0]
+        tracking = go.Scatter(
+            x=x,
+            y=y,
+            mode='lines',
+            line=dict(
+                width=2,
+                color='#f4d03f',
+                dash='dot'
+            ),
+            name="Driven trajectory",
+            showlegend=True
+        )
+
+        fig = go.Figure()
+        for item in [ref_full, tracking]:
+            fig.add_trace(item)
+
+        fig.update_layout(**asdict(layout))
+
+        # axis equal
+        fig.update_yaxes(
+            scaleanchor="x",
+            scaleratio=1,
+        )
+
+        fig.show()
+
 
 if __name__ == "__main__":
     # Show plots with random data.

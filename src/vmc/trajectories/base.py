@@ -33,7 +33,12 @@ class Position:
     X: float
     Y: float
 
-    def as_array(self):
+    def __post_init__(self):
+        """Check data types."""
+        if not isinstance(self.X, float):
+            raise ValueError('value not an float')
+
+    def as_array(self) -> np.ndarray:
         """Return Position as array."""
         return np.array([self.X, self.Y])
 
@@ -82,7 +87,9 @@ class Trajectory:
             idc.remove(0)
             idc.insert(0, idc[0]-1)
 
-        return Node(
+        return_class = Node if n_nodes == 1 else Trajectory
+
+        return return_class(
             self.X[idc], self.Y[idc], self.s[idc], self.psi[idc],
             self.kappa[idc], self.v[idc], self.a[idc]
         )
@@ -111,7 +118,11 @@ class OfflineReference():
     along the trajectory and the horizon `N_hor`.
     """
 
+    t_end = 15
+    lap_end = 2
+
     lead_node = True
+    starting_node = 5  # node of x0 (beginning of simulation)
 
     def __init__(self, track_filepath: str, n_nodes: int = 20):
         """Initialize by selecting a track and a time horizon."""
@@ -120,19 +131,18 @@ class OfflineReference():
         self.trajectory = load_trajectory(track_filepath)
         self.t = self.trajectory
 
+        # Trajectory information
         self.n_nodes = n_nodes
-
         self.total_length = self.t.s[-1]
         self.close_loop = self.t.X[0] == self.t.X[-1] and \
             self.t.Y[0] == self.t.Y[-1]
         self.ay_max = max(self.t.v**2 * self.t.kappa)
         self.vx_max = max(self.t.v)
 
-        self.x0 = np.array([[
-            self.t.X[0], self.t.Y[0], self.t.psi[0], 0, self.t.v[0], 0, 0
-        ]])
+        # Scenario information
+        N = self.t.get_nodes(self.starting_node, 1)
+        self.x0 = np.array([[N.X[0], N.Y[0], N.psi[0], 0, N.v[0], 0]]).T
 
-    
     def eval(self, position: Position):
         """Return a segment of reference according to current position."""
         localization_idx = self.__localize_on_trajectory(
@@ -151,16 +161,3 @@ class OfflineReference():
         nodes = np.asarray(np.array([self.t.X, self.t.Y]).T)
         dist_2 = np.sum((nodes - pos.as_array())**2, axis=1)
         return np.argmin(dist_2)
-
-
-# if __name__ == "__main__":
-#     track_filepath = './examples/tracks/Algarve_International_Circuit_02g_02g_128.json'
-#     Ref = OfflineReference(track_filepath, 20)
-
-#     pos = Position(1, 1)
-
-#     from time import perf_counter
-#     start = perf_counter()
-#     c = Ref.eval(n)
-#     print(c)
-#     print(perf_counter() - start)

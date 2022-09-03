@@ -1,5 +1,6 @@
 """Collection of common functionality for vehicle models."""
 
+import numpy as np
 import casadi as cs
 
 

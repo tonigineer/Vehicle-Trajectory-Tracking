@@ -2,10 +2,7 @@
 
 import numpy as np
 
-from vmc.models import FSVehSingleTrack
-from vmc.controller import SteerRamp
-from vmc.simulation import Simulator
-from vmc.trajectories import OfflineReference
+from vmc.trajectories import Position
 
 
 class Scenario:
@@ -37,8 +34,8 @@ class Scenario:
         `state_vector` : ndarray
             Current state vector of model.
 
-        Return
-        ------
+        Returns
+        -------
         `uk` : ndarray
             Control output for system.
         `ref` : Trajectory (opt)
@@ -46,22 +43,12 @@ class Scenario:
         """
         ref = None
         if self.reference:
-            pass
+            X, Y = state_vector[0:2][0:2, 0]  # bare values needed
+            ref = self.reference.eval(Position(X, Y))
 
-        return self.controller.eval(t=t, state_vector=state_vector, ref=ref)
-
-
-# if __name__ == "__main__":
-#     TRACK_FILEPATH = './examples/tracks/Algarve_International_Circuit_02g_02g_128.json'
-#     N_NODES = 25
-
-#     scenario = Scenario(
-#         SteerRamp(derivative=True),
-#         OfflineReference(TRACK_FILEPATH, N_NODES)
-#     )
-
-#     fs_veh_model = FSVehSingleTrack()
-
-#     Sim = Simulator(model=fs_veh_model, scenario=scenario)
-#     Sim.enable_animation = False
-#     Sim.run()
+        ctrl_out = self.controller.eval(
+            t=t,
+            state_vector=state_vector,
+            ref=ref
+        )
+        return ctrl_out, ref

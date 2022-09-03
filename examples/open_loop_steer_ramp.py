@@ -6,7 +6,7 @@ from vmc.controller import SteerRamp
 
 
 if __name__ == "__main__":
-    scenario_open_loop_ctrl = Scenario(SteerRamp(derivative=True))
+    scenario_open_loop_ctrl = Scenario(SteerRamp(derivative=False))
     fs_veh_model = FSVehSingleTrack()
 
     Sim = Simulator(model=fs_veh_model, scenario=scenario_open_loop_ctrl)

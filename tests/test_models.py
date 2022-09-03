@@ -36,15 +36,14 @@ def test_FSVehSingleTrack():
     """Test vehicle model with one time step for left turn."""
     model = FSVehSingleTrack()
 
-    x0 = np.array([[0, 0, 0, 0, 20, 0, 0]]).T
+    x0 = np.array([[0, 0, 0, 0, 20, 0]]).T  # heading north!
     u = np.array([[0.05, 2]]).T
 
-    X, Y, psi, psip, vx, vy, delta_v = np.array(model.dxdt_nominal(x0, u))
+    X, Y, psi, psip, vx, vy = np.array(model.dxdt_nominal(x0, u))
 
-    assert X > x0[0]
+    assert X < x0[0]
     assert Y > x0[1]
     assert psi > x0[2]
     assert psip > x0[3]
     assert eps_float_equality(vx, x0[4]+u[1]*model.dt)
     assert vy > x0[5]
-    assert eps_float_equality(delta_v, u[0]*model.dt)

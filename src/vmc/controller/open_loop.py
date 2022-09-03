@@ -6,6 +6,8 @@ a dynamic sequence of controller outputs.
 
 import numpy as np
 
+from vmc.controller.trajectory_tracking import ControlOutput
+
 
 class SteerRamp():
     """Steering ramp at constant velocity as open loop scenario.
@@ -31,7 +33,7 @@ class SteerRamp():
         self.vx = vx
         self.derivative = derivative
 
-        self.x0 = np.array([[0, 0, 0, 0, self.vx, 0, 0]]).T
+        self.x0 = np.array([[0, 0, 0, 0, self.vx, 0]]).T
 
     def eval(self, **kargs) -> np.ndarray:
         """Return input vector `u` according to time step `t`."""
@@ -46,4 +48,12 @@ class SteerRamp():
         delta_vp = (delta_v-delta_v_prev) / self.dt
 
         steering_input = delta_vp if self.derivative else delta_v
-        return np.array([[steering_input, 0]]).T
+        ax = np.float64(0.0)
+
+        return ControlOutput(
+            uk=np.array([[steering_input, ax]]).T,
+            delta_v=steering_input,
+            ax=ax,
+            e_y=np.float64(0.0), e_psi=np.float64(0.0),
+            e_vx=np.float64(0.0), ref_s=np.float64(0.0)
+        )

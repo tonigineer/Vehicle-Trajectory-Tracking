@@ -9,3 +9,6 @@ pytest_cache
 *.egg-info
 
 .coverage
+
+tempCodeRunnerFile.py
+py.typed
