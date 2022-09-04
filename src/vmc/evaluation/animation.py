@@ -119,9 +119,12 @@ class AnimateVehicle:
     def __create_figure(self, full_screen=False) -> None:
         """Create/initialize figure and axes."""
         self.axes = list()
-        plt.ion()
+
         self.figure, self.ax_main = plt.subplots(figsize=self.figure_size)
         self.axes.append(self.ax_main)
+
+        self.figure.show()
+        self.figure.canvas.draw()
 
         if full_screen:
             manager = plt.get_current_fig_manager()
@@ -135,13 +138,14 @@ class AnimateVehicle:
 
     def __draw_scenario(self, full_ref) -> None:
         """Draw path of full scenario."""
-        if not full_ref or self.__plt_scenario:
+        if not full_ref:
             return
 
         self.__plt_scenario, = self.ax_main.plot(
             full_ref.X, full_ref.Y,
             color='#d5d8dc', linewidth=1
         )
+        self.ax_main.draw_artist(self.__plt_scenario)
 
     def __draw_vehicle(self, X, Y, psi) -> None:
         """Draw a rectangle with a heading indicator as vehicle.
@@ -177,7 +181,8 @@ class AnimateVehicle:
 
             self.__plt_vehicle_dir.set_xdata(x_head)
             self.__plt_vehicle_dir.set_ydata(y_head)
-            self.ax_main.draw_artist(self.__plt_vehicle_dir)
+        self.ax_main.draw_artist(self.__plt_vehicle)
+        self.ax_main.draw_artist(self.__plt_vehicle_dir)
 
     def __draw_reference(self, ref) -> None:
         """Draw current reference for controller."""
@@ -195,7 +200,7 @@ class AnimateVehicle:
         else:
             self.__plt_ref.set_xdata(ref.X)
             self.__plt_ref.set_ydata(ref.Y)
-            self.ax_main.draw_artist(self.__plt_ref)
+        self.ax_main.draw_artist(self.__plt_ref)
 
     def __draw_controller_infos(self, ani_data) -> None:
         """Draw information in top right corner."""
@@ -221,6 +226,7 @@ class AnimateVehicle:
                 horizontalalignment="left",
                 verticalalignment="top"
             )
+        self.ax_main.draw_artist(self.__anno_infos)
 
     def __draw_sim_info(self, ani_data) -> None:
         """Draw fps in top left corner."""
@@ -242,6 +248,7 @@ class AnimateVehicle:
                 horizontalalignment="left",
                 verticalalignment="top"
             )
+        self.ax_main.draw_artist(self.__anno_ref_s)
 
     def __draw_fps(self) -> None:
         """Draw fps in top left corner."""
@@ -260,6 +267,7 @@ class AnimateVehicle:
                 horizontalalignment="right",
                 verticalalignment="top"
             )
+        self.ax_main.draw_artist(self.__anno_fps)
 
     def __rescale(self, veh_x, veh_y) -> None:
         """Rescale plot based on vehicle position."""
@@ -297,6 +305,8 @@ class AnimateVehicle:
         if ani_data.step % int(self.draw_rate/self.dt) != 0:
             return
 
+        self.__draw_backgrounds()
+
         self.__draw_scenario(ani_data.full_ref)
         self.__draw_reference(ani_data.ref)
 
@@ -313,7 +323,6 @@ class AnimateVehicle:
         self.__draw_sim_info(ani_data)
         self.__rescale(ani_data.veh_x, ani_data.veh_y)
 
-        self.__draw_backgrounds()
         self.__render_axes()
 
 

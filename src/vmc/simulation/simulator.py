@@ -129,8 +129,6 @@ class Simulator():
             else:
                 self.__show_progress(t)
 
-
-
     def show_states_and_input(self):
         """Visualize results of simulation.
 
