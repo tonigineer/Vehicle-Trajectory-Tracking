@@ -65,27 +65,30 @@ def test_localize_on_trajectory_inside():
     """
     N_NODES = 20
     RADIUS = 25
-    RADIUS_EGO = 0
+    RADIUS_EGO = 1  # > 0
 
     psi = np.linspace(0, np.pi/2, N_NODES)
     X = RADIUS * np.cos(psi)
     Y = RADIUS * np.sin(psi)
-    X_ego = RADIUS_EGO * np.cos(psi)
-    Y_ego = RADIUS_EGO * np.sin(psi)
     s = np.linspace(0, np.pi/2 * RADIUS, N_NODES)
 
-    vec0 = np.zeros([N_NODES, 1])  # other attributes not needed now
+    psi = np.linspace(
+        (psi[1]-psi[0])/2,
+        psi[-2] + (psi[-1]-psi[-2])/2,
+        N_NODES-1
+    )  # in between other nodes
+    X_ego = RADIUS_EGO * np.cos(psi)
+    Y_ego = RADIUS_EGO * np.sin(psi)
 
+    vec0 = np.zeros([N_NODES, 1])  # other attributes not needed now
     T = Trajectory(X, Y, s, vec0, vec0, vec0, vec0)
 
-    for k in range(len(X)-1):
+    for k in range(len(X_ego)):
         P = Position(X_ego[k], Y_ego[k])
-        # from time import perf_counter
-        # start = perf_counter()
         s_localized = pid.localize_on_trajectory(T, P, N_NODES-1)
-        # print(perf_counter() - start)
-        msg = 'Travel distances does not match.'
-        assert np.diff([s[k+1], s_localized*2]) < 0.001, msg
+
+        msg = 'Travel distances not between nodes.'
+        assert s[k+1] > s_localized > s[k], msg
 
 
 def test_localize_on_trajectory_outside():
