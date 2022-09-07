@@ -3,12 +3,12 @@
 ![main workflow](https://github.com/tonigineer/VehicleMotionControl/actions/workflows/tests.yml/badge.svg)
 
 Development framework for **vehicle motion control**. This repository provides a simple framework to develop and evaluate controller for trajectory tracking.
-
-Features:
+<!-- 
+### Features
 
 1. Animation
 
-<img src="assets/example_animation.png" alt="drawing" width="400" align="center"/>
+<img src="assets/example_animation.png" alt="drawing" width="250" align="center"/>
 
 2. Evaluation plots
 
@@ -17,11 +17,11 @@ Features:
     <img src="assets/example_eval_path.png" alt="drawing" width="400"/>
 </p>
 
-Examples:
+### Examples
 
 1. Trajectory tracking via PID-Controller
 
-<!-- 2. Trajectory tracking via Model Predictive Controller (MPC) -->
+2. Trajectory tracking via Model Predictive Controller (MPC) -->
 
 ## Installation
 
@@ -33,17 +33,17 @@ pip install -r requirements.txt
 ```
 
 
-## Reference description
+<!-- ## Reference description
 
 TODO: Trajectory description
 
 ## Models
 
-TODO: Vehicle model
+TODO: Vehicle model -->
 
 ## Controller
 
-1. TrajTrackPID
+<!-- 1. TrajTrackPID
 
 A simple PID Controller with feed forward to track a reference trajectory.
 
@@ -51,10 +51,10 @@ Property | Comment
 --- | ---
 ControlOutput | `steering angle` $\delta_v$ and `acceleration command` $a_x$
 Errors | `lateral deviation` $\epsilon_y$, `yaw error` $\epsilon_{\psi}$ and `velocity difference` $\epsilon_{vx}$
-Feed forward | `curvature` for steering angle
+Feed forward | `curvature` for steering angle -->
 
 ```bash
 python examples/trajectory_tracking_pid.py
 ```
-
-2. TODO: MPC
+<!-- 
+2. TODO: MPC -->

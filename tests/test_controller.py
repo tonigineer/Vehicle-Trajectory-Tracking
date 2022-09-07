@@ -3,8 +3,12 @@
 import numpy as np
 
 from misc import eps_float_equality
-from vmc.controller import TrajTrackPID
+from vmc.controller import (
+    TrajTrackPID, heading_error, interpolate_node, localize_on_trajectory,
+    make_psi_continuous, make_s_strictly_monotonic
+)
 from vmc.trajectories import Trajectory, Position
+
 
 pid = TrajTrackPID()
 
@@ -20,8 +24,8 @@ def test_heading_angle_error():
     psi_vehicle = psi_traj + ANGLE_DIFF
 
     for a1, a2 in zip(psi_traj, psi_vehicle):
-        assert eps_float_equality(pid.heading_error(a1, a2), ANGLE_DIFF)
-        assert eps_float_equality(pid.heading_error(a2, a1), -ANGLE_DIFF)
+        assert eps_float_equality(heading_error(a1, a2), ANGLE_DIFF)
+        assert eps_float_equality(heading_error(a2, a1), -ANGLE_DIFF)
 
 
 def test_localize_on_trajectory_exactly():
@@ -46,7 +50,7 @@ def test_localize_on_trajectory_exactly():
 
     for k in range(len(x)):
         P = Position(x[k], y[k])
-        s_localized = pid.localize_on_trajectory(T, P, N_NODES-1)
+        s_localized = localize_on_trajectory(T, P, N_NODES-1)
 
         # NOTE: Normally, the error should be even smaller, here another
         # look is needed, why the error for identical ego position is not
@@ -85,7 +89,7 @@ def test_localize_on_trajectory_inside():
 
     for k in range(len(x_ego)):
         P = Position(x_ego[k], y_ego[k])
-        s_localized = pid.localize_on_trajectory(T, P, N_NODES-1)
+        s_localized = localize_on_trajectory(T, P, N_NODES-1)
 
         msg = 'Travel distances not between nodes.'
         assert s[k+1] > s_localized > s[k], msg
@@ -119,7 +123,7 @@ def test_localize_on_trajectory_outside():
     s_current = 0
     for k in range(len(x_ego)-1):
         P = Position(x_ego[k], y_ego[k])
-        s_localized = pid.localize_on_trajectory(T, P, N_NODES-1)
+        s_localized = localize_on_trajectory(T, P, N_NODES-1)
         assert s_localized >= s_current
         s_current = s_localized
 
@@ -138,7 +142,7 @@ def test_interpolate_node():
     )
 
     for s_current in np.linspace(0, 19, 1000):
-        node = pid.interpolate_node(T, s_current)
+        node = interpolate_node(T, s_current)
         assert eps_float_equality(node.x, s_current), 'X not correctly interpolated'
         assert eps_float_equality(node.y, s_current), 'Y not correctly interpolated'
         assert eps_float_equality(node.s, s_current), 's not correctly interpolated'
@@ -161,5 +165,28 @@ def test_make_s_strictly_monotonic():
             zeros_vec, zeros_vec
         )
 
-        T = pid.make_s_strictly_monotonic(T)
+        T = make_s_strictly_monotonic(T)
         assert np.all(np.diff(T.s) > 0), 's not strictly monotonic'
+
+
+def test_make_psi_continuous():
+    """Check with hardcoded edge cases."""
+    N_NODES = 3
+
+    zeros_vec = np.zeros([N_NODES, 1])
+    psi_sample = [
+        np.array([-2*np.pi, 0.01, 0.02]),
+        np.array([2*np.pi, 0.01, 0.02]),
+        np.array([2*np.pi-0.01, 2*np.pi, 0.01]),
+    ]
+
+    for psi in psi_sample:
+        T = Trajectory(
+            zeros_vec, zeros_vec, zeros_vec, psi, zeros_vec,
+            zeros_vec, zeros_vec
+        )
+
+        T = make_psi_continuous(T)
+        diffs = np.abs(np.diff(T.psi))
+        assert eps_float_equality(diffs[0], 0.01), 'psi is not continuous'
+        assert eps_float_equality(diffs[1], 0.01), 'psi is not continuous'
