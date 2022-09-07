@@ -36,16 +36,16 @@ def test_localize_on_trajectory_exactly():
     RADIUS = 25
 
     psi = np.linspace(0, np.pi/2, N_NODES)
-    X = RADIUS * np.cos(psi)
-    Y = RADIUS * np.sin(psi)
+    x = RADIUS * np.cos(psi)
+    y = RADIUS * np.sin(psi)
     s = np.linspace(0, np.pi/2 * RADIUS, N_NODES)
 
     vec0 = np.zeros([N_NODES, 1])  # other attributes not needed now
 
-    T = Trajectory(X, Y, s, vec0, vec0, vec0, vec0)
+    T = Trajectory(x, y, s, vec0, vec0, vec0, vec0)
 
-    for k in range(len(X)):
-        P = Position(X[k], Y[k])
+    for k in range(len(x)):
+        P = Position(x[k], y[k])
         s_localized = pid.localize_on_trajectory(T, P, N_NODES-1)
 
         # NOTE: Normally, the error should be even smaller, here another
@@ -68,8 +68,8 @@ def test_localize_on_trajectory_inside():
     RADIUS_EGO = 1  # > 0
 
     psi = np.linspace(0, np.pi/2, N_NODES)
-    X = RADIUS * np.cos(psi)
-    Y = RADIUS * np.sin(psi)
+    x = RADIUS * np.cos(psi)
+    y = RADIUS * np.sin(psi)
     s = np.linspace(0, np.pi/2 * RADIUS, N_NODES)
 
     psi = np.linspace(
@@ -77,14 +77,14 @@ def test_localize_on_trajectory_inside():
         psi[-2] + (psi[-1]-psi[-2])/2,
         N_NODES-1
     )  # in between other nodes
-    X_ego = RADIUS_EGO * np.cos(psi)
-    Y_ego = RADIUS_EGO * np.sin(psi)
+    x_ego = RADIUS_EGO * np.cos(psi)
+    y_ego = RADIUS_EGO * np.sin(psi)
 
     vec0 = np.zeros([N_NODES, 1])  # other attributes not needed now
-    T = Trajectory(X, Y, s, vec0, vec0, vec0, vec0)
+    T = Trajectory(x, y, s, vec0, vec0, vec0, vec0)
 
-    for k in range(len(X_ego)):
-        P = Position(X_ego[k], Y_ego[k])
+    for k in range(len(x_ego)):
+        P = Position(x_ego[k], y_ego[k])
         s_localized = pid.localize_on_trajectory(T, P, N_NODES-1)
 
         msg = 'Travel distances not between nodes.'
@@ -104,21 +104,21 @@ def test_localize_on_trajectory_outside():
     RADIUS = 25
 
     psi = np.linspace(0, np.pi/2, N_NODES)
-    X = RADIUS * np.cos(psi)
-    Y = RADIUS * np.sin(psi)
+    x = RADIUS * np.cos(psi)
+    y = RADIUS * np.sin(psi)
     s = np.linspace(0, np.pi/2 * RADIUS, N_NODES)
 
     psi = np.linspace(0, np.pi/2, N_NODES*100)
-    X_ego = RADIUS * np.cos(psi)
-    Y_ego = RADIUS * np.sin(psi)
+    x_ego = RADIUS * np.cos(psi)
+    y_ego = RADIUS * np.sin(psi)
 
     vec0 = np.zeros([N_NODES, 1])  # other attributes not needed now
 
-    T = Trajectory(X, Y, s, vec0, vec0, vec0, vec0)
+    T = Trajectory(x, y, s, vec0, vec0, vec0, vec0)
 
     s_current = 0
-    for k in range(len(X_ego)-1):
-        P = Position(X_ego[k], Y_ego[k])
+    for k in range(len(x_ego)-1):
+        P = Position(x_ego[k], y_ego[k])
         s_localized = pid.localize_on_trajectory(T, P, N_NODES-1)
         assert s_localized >= s_current
         s_current = s_localized
@@ -139,8 +139,8 @@ def test_interpolate_node():
 
     for s_current in np.linspace(0, 19, 1000):
         node = pid.interpolate_node(T, s_current)
-        assert eps_float_equality(node.X, s_current), 'X not correctly interpolated'
-        assert eps_float_equality(node.Y, s_current), 'Y not correctly interpolated'
+        assert eps_float_equality(node.x, s_current), 'X not correctly interpolated'
+        assert eps_float_equality(node.y, s_current), 'Y not correctly interpolated'
         assert eps_float_equality(node.s, s_current), 's not correctly interpolated'
         assert eps_float_equality(node.psi, s_current), 'psi not correctly interpolated'
         assert eps_float_equality(node.kappa, s_current), 'kappa not correctly interpolated'

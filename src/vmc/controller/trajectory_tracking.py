@@ -30,40 +30,185 @@ class ControlOutput:
         assert type(self.ref_s) == np.float64
 
 
+def localize_on_trajectory(t: Trajectory, p: Position, nrn: int = 5) -> float:
+    """Determine traveled distance on trajectory according to vehicle position.
+
+    The algorithm determines the shortest point from `p` to the trajectory,
+    that is perpendicular to a tangent along this trajectory. If the shortest
+    point lays outside two points of the trajectory, the closest point used.
+
+    Returned is the traveled distance to this point. This way, all other
+    attributes can be interpolated.
+
+    Arguments
+    ---------
+    `t` : Trajectory
+        Trajectory with `n` nodes, each node containing all seven attributes.
+    `p` : Position
+        Ego position of vehicle.
+    `nrn` : int
+        Number of relevant nodes, that are taken into consideration for calc.
+        If start of trajectory is close to ego position, less `nrn` are needed.
+        Default implementation ensures that.
+
+    Return
+    ------
+    `ref_s` : float
+        Traveled distance along trajectory, can be used to interpolate current
+        reference point on trajectory.
+    """
+    pp = np.array([p.x, p.y])
+    # plt.plot(pp[0], pp[1], marker="x")
+    assert len(t.x) > nrn, f'Number of relevant nodes ({nrn}) must be \
+        smaller than the number nodes ({len(t.x)}) of the trajectory'
+
+    # Allocate memory
+    pcs = np.zeros([nrn, 2])
+    pc_diffs = np.zeros([nrn, 1])
+    distances = np.zeros([nrn, 1])
+    in_between = np.zeros([nrn, 1])
+
+    for i in range(nrn):
+        # Points of line
+        pa = np.array([t.x[i], t.y[i]])
+        pb = np.array([t.x[i+1], t.y[i+1]])
+
+        # Vectors
+        AB = pb-pa
+        AP = pp-pa
+
+        # Length from pa to projection pc on AB, where vector through pp is
+        # perpendicular on AB. May be outside of AB!
+        pc_diff = np.dot(AB, AP) / np.dot(AB, AB) * AB
+        pc = pa + pc_diff
+
+        AC = pc-pa
+
+        # Source: https://lucidar.me/en/mathematics/check-if-a-point-belongs-on-a-line-segment/
+        on_vector = not(np.dot(AB, AC) < 0 or np.dot(AB, AC) > np.dot(AB, AB))
+
+        pcs[i, :] = pc
+        pc_diffs[i, :] = np.linalg.norm(pc-pa)
+        distances[i, :] = np.linalg.norm(pc-pp)
+        in_between[i, :] = on_vector
+
+    #     plt.plot(pc[0], pc[1], marker="o")
+    #     plt.plot([pc[0], pa[0]], [pc[1], pa[1]])
+    # plt.plot(t.x, t.y)
+    # plt.show()
+
+    if np.any(in_between):
+        distances[in_between == 0] = np.inf
+        k = np.argmin(distances)
+    else:
+        k = np.argmin(pc_diffs)
+
+    return t.s[k] + pc_diffs[k, 0]
+
+
+def interpolate_node(t: Trajectory, ref_s: float) -> Node:
+    """Interpolate node in between `trajectory` according to `ref_s`."""
+    x_ref = np.interp(ref_s, t.s, t.x)
+    y_ref = np.interp(ref_s, t.s, t.y)
+    psi_ref = np.interp(ref_s, t.s, t.psi)
+    kappa_ref = np.interp(ref_s, t.s, t.kappa)
+    v_ref = np.interp(ref_s, t.s, t.v)
+    a_ref = np.interp(ref_s, t.s, t.a)
+    return Node(x_ref, y_ref, ref_s, psi_ref, kappa_ref, v_ref, a_ref)
+
+
+def heading_error(psi_ref: float, psi_vehicle: float) -> float:
+    """Calculate error between two heading angle.
+
+    Function handles warp around at 0/2pi.
+
+    Arguments
+    ---------
+    `psi_ref` : float
+        Heading of trajectory/reference
+    `psi_vehicle` : float
+        Heading of vehicle
+
+    Return
+    ------
+    `heading_error` : float
+        Angle difference between both inputs in rad.
+
+    NOTE: Arguments can be swapped.
+    """
+    cp = np.cos(psi_ref)*np.sin(psi_vehicle) - \
+        np.sin(psi_ref)*np.cos(psi_vehicle)
+    dp = np.cos(psi_ref)*np.cos(psi_vehicle) + \
+        np.sin(psi_ref)*np.sin(psi_vehicle)
+    return np.arctan2(cp, dp)
+
+
+def make_s_strictly_monotonic(t: Trajectory) -> Trajectory:
+    """Make `s` strictly monotonic."""
+    if not all(np.diff(t.s) > 0):
+        idc = t.s < t.s[0]
+        t.s[idc] += np.max(t.s)
+    return t
+
+
+def make_psi_continuous(t: Trajectory) -> Trajectory:
+    """Make `psi` continuous for interpolation."""
+    t.psi = np.unwrap(2 * t.psi) / 2
+
+    msg = f'heading angle appears not to be continuous {t.psi}'
+    assert np.any(np.abs(np.diff(t.psi)) < np.deg2rad(45)), msg
+
+    return t
+
+
 class TrajTrackPID:
     """PID controller for trajectory tracking."""
 
     dt = 0.01
 
+    # Controller parameter
     kp_e_y = 0.5
+    ki_e_y = 0.1
     kd_e_y = 0.1
 
     kp_e_psi = 1
 
     kp_vx = 2
 
-    __e_y_prev = 0
+    __e_y_last = 0
+    __e_y_integral = 0
 
     def __pid_ffw_control(self, ref_node, e_y, e_psi, e_vx):
-        """Apply PID and FeedForward to errors/ref_node."""
-        e_yp = (e_y - self.__e_y_prev) / self.dt
+        """Apply PID to for delta_v and ax."""
+        delta_v, ax = 0, 0
 
-        delta_v_e_y = e_y * self.kp_e_y + e_yp * self.kd_e_y
-        delta_v_e_psi = e_psi * self.kp_e_psi
-        delta_v = delta_v_e_y + delta_v_e_psi
+        # Proportional gains
+        delta_v += e_y * self.kp_e_y
+        delta_v += e_psi * self.kp_e_psi
+        ax = e_vx * self.kp_vx
 
-        ax_ffw = ref_node.a
-        ax_e_vx = e_vx * self.kp_vx
-        ax = ax_ffw + ax_e_vx
+        # Integral gains
+        self.__e_y_integral += e_y * self.dt
+        delta_v += self.__e_y_integral * self.ki_e_y
 
-        self.__e_y_prev = e_y
+        # Differential gains
+        e_yp = (e_y - self.__e_y_last) / self.dt
+        self.__e_y_last = e_y
+        delta_v += e_yp * self.kd_e_y
+
+        # Feed forward
+        ax += ref_node.a
+
+        # TODO: feed forward for `delta_y` based on kappa is still
+        #       missing.
+
         return delta_v, ax
 
-    @classmethod
-    def __tracking_errors(cls, ref_node, veh_x, veh_y, veh_psi, veh_vx):
+    @staticmethod
+    def __tracking_errors(ref_node, veh_x, veh_y, veh_psi, veh_vx):
         """Calculate tracking errors of vehicle to reference."""
-        x_diff = veh_x-ref_node.X
-        y_diff = veh_y-ref_node.Y
+        x_diff = veh_x-ref_node.x
+        y_diff = veh_y-ref_node.y
         e_y = np.linalg.norm(
             np.array([x_diff, y_diff])
         )
@@ -71,7 +216,7 @@ class TrajTrackPID:
                 np.cos(ref_node.psi + np.pi/2) * y_diff) > 0:
             e_y *= -1
 
-        e_psi = cls.heading_error(veh_psi, ref_node.psi)
+        e_psi = heading_error(veh_psi, ref_node.psi)
 
         e_vx = ref_node.v - veh_vx
 
@@ -99,23 +244,14 @@ class TrajTrackPID:
         veh_x, veh_y, veh_psi = xk.flatten()[0:3]
         veh_vx = xk.flatten()[4]
 
-        ref = cls.make_s_strictly_monotonic(ref)
-        # ref = cls.make_psi_continuous(ref)
-        # TODO: spätestens gebenoetgit bei rundenubergang
+        ref = make_s_strictly_monotonic(ref)
+        ref = make_psi_continuous(ref)
 
         # Calculate tracking errors
-        ref_s = cls.localize_on_trajectory(
+        ref_s = localize_on_trajectory(
             t=ref, p=Position(veh_x, veh_y)
         )
-        # TODO die nur outside fuehrt wohl zu fehlern
-        ref_node = cls.interpolate_node(ref, ref_s)
-        # TODO:
-
-        # print(f'{s_current} // {ref_node.psi}')
-        # if ref_node.psi < 0.1:    
-        #     print(ref.psi)
-        #     pass
-
+        ref_node = interpolate_node(ref, ref_s)
         e_y, e_psi, e_vx = cls.__tracking_errors(
             ref_node, veh_x, veh_y, veh_psi, veh_vx
         )
@@ -125,133 +261,3 @@ class TrajTrackPID:
         return ControlOutput(
             np.array([[delta_v, ax]]).T, delta_v, ax, e_y, e_psi, e_vx, ref_s
         )
-
-    @staticmethod
-    def localize_on_trajectory(t: Trajectory, p: Position, nrn: int = 5) -> float:
-        """Determine traveled distance on trajectory according to vehicle position.
-
-        The algorithm determines the shortest point from `p` to the trajectory,
-        that is perpendicular to a tangent along this trajectory. If the shortest
-        point lays outside two points of the trajectory, the closest point used.
-
-        Returned is the traveled distance to this point. This way, all other
-        attributes can be interpolated.
-
-        Arguments
-        ---------
-        `t` : Trajectory
-            Trajectory with `n` nodes, each node containing all seven attributes.
-        `p` : Position
-            Ego position of vehicle.
-        `nrn` : int
-            Number of relevant nodes, that are taken into consideration for calc.
-            If start of trajectory is close to ego position, less `nrn` are needed.
-            Default implementation ensures that.
-
-        Return
-        ------
-        `ref_s` : float
-            Traveled distance along trajectory, can be used to interpolate current
-            reference point on trajectory.
-        """
-        pp = np.array([p.X, p.Y])
-        # plt.plot(pp[0], pp[1], marker="x")
-        assert len(t.X) > nrn, f'Number of relevant nodes ({nrn}) must be \
-            smaller than the number nodes ({len(t.X)}) of the trajectory'
-
-        # Allocate memory
-        pcs = np.zeros([nrn, 2])
-        pc_diffs = np.zeros([nrn, 1])
-        distances = np.zeros([nrn, 1])
-        in_between = np.zeros([nrn, 1])
-
-        for i in range(nrn):
-            # Points of line
-            pa = np.array([t.X[i], t.Y[i]])
-            pb = np.array([t.X[i+1], t.Y[i+1]])
-
-            # Vectors
-            AB = pb-pa
-            AP = pp-pa
-
-            # Length from pa to projection pc on AB, where vector through pp is
-            # perpendicular on AB. May be outside of AB!
-            pc_diff = np.dot(AB, AP) / np.dot(AB, AB) * AB
-            pc = pa + pc_diff
-
-            AC = pc-pa
-
-            # Source: https://lucidar.me/en/mathematics/check-if-a-point-belongs-on-a-line-segment/
-            on_vector = not(np.dot(AB, AC) < 0 or np.dot(AB, AC) > np.dot(AB, AB))
-
-            pcs[i, :] = pc
-            pc_diffs[i, :] = np.linalg.norm(pc-pa)
-            distances[i, :] = np.linalg.norm(pc-pp)
-            in_between[i, :] = on_vector
-
-        #     plt.plot(pc[0], pc[1], marker="o")
-        #     plt.plot([pc[0], pa[0]], [pc[1], pa[1]])
-        # plt.plot(t.X, t.Y)
-        # plt.show()
-
-        if np.any(in_between):
-            distances[in_between == 0] = np.inf
-            k = np.argmin(distances)
-        else:
-            k = np.argmin(pc_diffs)
-
-        return t.s[k] + pc_diffs[k, 0]
-
-    @staticmethod
-    def interpolate_node(t: Trajectory, ref_s: float) -> Node:
-        """Interpolate node in between `trajectory` according to `ref_s`."""
-        X_ref = np.interp(ref_s, t.s, t.X)
-        Y_ref = np.interp(ref_s, t.s, t.Y)
-        psi_ref = np.interp(ref_s, t.s, t.psi)
-        kappa_ref = np.interp(ref_s, t.s, t.kappa)
-        v_ref = np.interp(ref_s, t.s, t.v)
-        a_ref = np.interp(ref_s, t.s, t.a)
-        return Node(X_ref, Y_ref, ref_s, psi_ref, kappa_ref, v_ref, a_ref)
-
-    @staticmethod
-    def heading_error(psi_ref: float, psi_vehicle: float) -> float:
-        """Calculate error between two heading angle.
-
-        Function handles warp around at 0/2pi.
-
-        Arguments
-        ---------
-        `psi_ref` : float
-            Heading of trajectory/reference
-        `psi_vehicle` : float
-            Heading of vehicle
-
-        Return
-        ------
-        `heading_error` : float
-            Angle difference between both inputs in rad.
-
-        NOTE: Arguments can be swapped.
-        """
-        cp = np.cos(psi_ref)*np.sin(psi_vehicle) - \
-            np.sin(psi_ref)*np.cos(psi_vehicle)
-        dp = np.cos(psi_ref)*np.cos(psi_vehicle) + \
-            np.sin(psi_ref)*np.sin(psi_vehicle)
-
-        return np.arctan2(cp, dp)
-
-    @staticmethod
-    def make_s_strictly_monotonic(t: Trajectory) -> Trajectory:
-        """Make `s` strictly monotonic."""
-        if not all(np.diff(t.s) > 0):
-            idc = t.s < t.s[0]
-            t.s[idc] += np.max(t.s)
-        return t
-
-    @staticmethod
-    def make_psi_continuous(t: Trajectory) -> Trajectory:
-        """Make `psi` continuous for interpolation."""
-        t.psi = t.psi % (2*np.pi)
-        if np.any(np.diff(t.psi) > 6):
-            raise NotImplementedError
-        return t

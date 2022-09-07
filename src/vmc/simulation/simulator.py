@@ -181,12 +181,13 @@ class Simulator():
             )
             data.append(_)
 
+        # TODO: self.lap_steps to separate laps in plots
         Evaluation.subplots(data, sl, columns=3)
 
     def show_tracking(self):
         """Plot full reference trajectory and driven' paths of vehicle."""
         # Layout settings
-        sl = SubplotLayout('Drivin paths of vehicle')
+        sl = SubplotLayout('Driven paths of vehicle')
 
         self.sim  # full sim data with
         Evaluation.tracking_plot(
@@ -194,28 +195,3 @@ class Simulator():
             self.scenario.reference.trajectory,
             sl
         )
-
-
-if __name__ == "__main__":
-    from vmc.models import FSVehSingleTrack
-    from vmc.simulation import Simulator
-    from vmc.trajectories import OfflineReference, Position
-    from vmc.simulation import Scenario
-
-    TRACK_FILEPATH = './examples/tracks/Algarve_International_Circuit_03g_06g_130.json'
-    N_NODES = 25
-    from vmc.controller import TrajTrackPID
-    scenario = Scenario(
-        TrajTrackPID(),
-        OfflineReference(TRACK_FILEPATH, N_NODES)
-    )
-    scenario.t_end = 600
-
-    fs_veh_model = FSVehSingleTrack()
-
-    Sim = Simulator(model=fs_veh_model, scenario=scenario)
-    Sim.enable_animation = True
-    Sim.laps_max = 2
-    Sim.run()
-    Sim.show_states_and_input()
-    Sim.show_tracking()

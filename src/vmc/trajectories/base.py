@@ -17,8 +17,8 @@ def mod_range(arr: list, n_range: int):
 class Node:
     """Class to store a trajectory node information."""
 
-    X: float
-    Y: float
+    x: float
+    y: float
     s: float
     psi: float
     kappa: float
@@ -30,25 +30,25 @@ class Node:
 class Position:
     """Class to store only positional data of a node."""
 
-    X: float
-    Y: float
+    x: float
+    y: float
 
     def __post_init__(self):
         """Check data types."""
-        if not isinstance(self.X, float):
+        if not isinstance(self.x, float):
             raise ValueError('value not an float')
 
     def as_array(self) -> np.ndarray:
         """Return Position as array."""
-        return np.array([self.X, self.Y])
+        return np.array([self.x, self.y])
 
 
 @dataclass
 class Trajectory:
     """Class to store trajectory information."""
 
-    X: np.ndarray
-    Y: np.ndarray
+    x: np.ndarray
+    y: np.ndarray
     s: np.ndarray
     psi: np.ndarray
     kappa: np.ndarray
@@ -90,7 +90,7 @@ class Trajectory:
         return_class = Node if n_nodes == 1 else Trajectory
 
         return return_class(
-            self.X[idc], self.Y[idc], self.s[idc], self.psi[idc],
+            self.x[idc], self.y[idc], self.s[idc], self.psi[idc],
             self.kappa[idc], self.v[idc], self.a[idc]
         )
 
@@ -134,14 +134,14 @@ class OfflineReference():
         # Trajectory information
         self.n_nodes = n_nodes
         self.total_length = self.t.s[-1]
-        self.close_loop = self.t.X[0] == self.t.X[-1] and \
-            self.t.Y[0] == self.t.Y[-1]
+        self.close_loop = self.t.x[0] == self.t.x[-1] and \
+            self.t.y[0] == self.t.y[-1]
         self.ay_max = max(self.t.v**2 * self.t.kappa)
         self.vx_max = max(self.t.v)
 
         # Scenario information
         N = self.t.get_nodes(self.starting_node, 1)
-        self.x0 = np.array([[N.X[0], N.Y[0], N.psi[0], 0, N.v[0], 0]]).T
+        self.x0 = np.array([[N.x[0], N.y[0], N.psi[0], 0, N.v[0], 0]]).T
 
     def eval(self, position: Position):
         """Return a segment of reference according to current position."""
@@ -158,6 +158,6 @@ class OfflineReference():
         """Determine closest node to position."""
         # TODO: could be to expensive > keeping track of index and increasing
         #       might be cheaper
-        nodes = np.asarray(np.array([self.t.X, self.t.Y]).T)
+        nodes = np.asarray(np.array([self.t.x, self.t.y]).T)
         dist_2 = np.sum((nodes - pos.as_array())**2, axis=1)
         return np.argmin(dist_2)

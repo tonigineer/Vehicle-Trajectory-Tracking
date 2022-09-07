@@ -111,7 +111,7 @@ class Evaluation:
                 Number of columns.
         """
         ref_full = cls.__scatter_plot(
-            x=ref.X, y=ref.Y,
+            x=ref.x, y=ref.y,
             name='Complete reference trajectory',
             showlegend=True,
             color='#3498db'

@@ -12,17 +12,17 @@ def test_OfflineReference():
 
     Ref = OfflineReference(TRACK_FILEPATH, N_NODES)
 
-    for x, y in zip(Ref.t.X, Ref.t.Y):
+    for x, y in zip(Ref.t.x, Ref.t.y):
         pos = Position(x, y)
         traj = Ref.eval(pos)
 
         msg = 'Trajectory contains different number of nodes'
-        assert len(traj.X) == N_NODES, msg
+        assert len(traj.x) == N_NODES, msg
 
         msg = 'Trajectory contains identical x position'
-        assert len(set(traj.X)) == len(traj.X), msg
+        assert len(set(traj.x)) == len(traj.x), msg
         msg = 'Trajectory contains identical y position'
-        assert len(set(traj.Y)) == len(traj.Y), msg
+        assert len(set(traj.y)) == len(traj.y), msg
 
         msg = 'Trajectory contains first (s=0) node in between'
         assert not np.isin(0, traj.s) or traj.s[0] == 0, msg

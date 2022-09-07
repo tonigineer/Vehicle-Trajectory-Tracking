@@ -9,6 +9,9 @@ from dataclasses import dataclass
 from vmc.trajectories import Trajectory
 
 
+# TODO: draw_artist auf liste anwenden, all draw function updaten nu
+#       full_ref uber background zeichnen lassen?
+
 def rotate_point(x, y, phi):
     """Rotate a point `(x,y)` by angle=`phi`."""
     return (
@@ -142,12 +145,12 @@ class AnimateVehicle:
             return
 
         self.__plt_scenario, = self.ax_main.plot(
-            full_ref.X, full_ref.Y,
+            full_ref.x, full_ref.y,
             color='#d5d8dc', linewidth=1
         )
         self.ax_main.draw_artist(self.__plt_scenario)
 
-    def __draw_vehicle(self, X, Y, psi) -> None:
+    def __draw_vehicle(self, veh_x, veh_y, psi) -> None:
         """Draw a rectangle with a heading indicator as vehicle.
 
         Arguments
@@ -165,12 +168,12 @@ class AnimateVehicle:
                 self.dx_rect, self.dy_rect
             )
         ]
-        x_rect = [X+p[0] for p in rotated_rect]
-        y_rect = [Y+p[1] for p in rotated_rect]
+        x_rect = [veh_x+p[0] for p in rotated_rect]
+        y_rect = [veh_y+p[1] for p in rotated_rect]
 
         rotated_head = rotate_point(self.vehicle_width/2, 0, psi)
-        x_head = [X, X+rotated_head[0]]
-        y_head = [Y, Y+rotated_head[1]]
+        x_head = [veh_x, veh_x+rotated_head[0]]
+        y_head = [veh_y, veh_y+rotated_head[1]]
 
         if self.__plt_vehicle is None:
             self.__plt_vehicle, = self.ax_main.plot(x_rect, y_rect, color='#323567')
@@ -191,15 +194,15 @@ class AnimateVehicle:
 
         if self.__plt_ref is None:
             self.__plt_ref, = self.ax_main.plot(
-                ref.X, ref.Y,
+                ref.x, ref.y,
                 marker='.',
                 linewidth=0,
                 markersize=4,
                 color="#6a7170"
             )
         else:
-            self.__plt_ref.set_xdata(ref.X)
-            self.__plt_ref.set_ydata(ref.Y)
+            self.__plt_ref.set_xdata(ref.x)
+            self.__plt_ref.set_ydata(ref.y)
         self.ax_main.draw_artist(self.__plt_ref)
 
     def __draw_controller_infos(self, ani_data) -> None:
