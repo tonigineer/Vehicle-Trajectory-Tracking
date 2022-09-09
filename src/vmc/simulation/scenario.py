@@ -22,7 +22,6 @@ class Scenario:
 
         # if no reference given, open loop controller applied
         self.x0 = self.reference.x0 if reference else self.controller.x0
-        self.t_end = self.reference.t_end if reference else self.controller.t_end
 
     def eval(self, t: float, state_vector: np.ndarray) -> np.ndarray:
         """Interface for Simulator to get uk for next time step.

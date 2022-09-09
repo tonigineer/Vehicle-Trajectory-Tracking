@@ -1,5 +1,6 @@
 """Main module for animation tasks."""
 
+from curses import COLOR_GREEN
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -9,8 +10,14 @@ from dataclasses import dataclass
 from vmc.trajectories import Trajectory
 
 
-# TODO: draw_artist auf liste anwenden, all draw function updaten nu
-#       full_ref uber background zeichnen lassen?
+C_BACKGROUND = '#101010'
+C_FPS = '#AC2C24'
+C_SIM_INFO = '#484848'
+C_CTRL_INFO = '#484848'
+C_VEHICLE = '#EE8F90'
+C_REF = '#FADB75'
+C_FULL_REF = '#EBE8E9'
+
 
 def rotate_point(x, y, phi):
     """Rotate a point `(x,y)` by angle=`phi`."""
@@ -69,14 +76,14 @@ class AnimateVehicle:
     vehicle_height = 1.85
 
     show_fps = True
-    fps_max = 120
+    fps_max = 250
 
     figure_size = (10, 8)
     figure_title = 'Trajectory tracking vehicle motion controller'
     x_label = 'X position in [m]'
     y_label = 'Y position in [m]'
 
-    zoom_factor = 50
+    scaling = 250
 
     def __init__(self, dt, draw_rate=0.1):
         """Initialize class with needed information.
@@ -94,6 +101,9 @@ class AnimateVehicle:
         """
         self.dt = dt
         self.draw_rate = draw_rate
+
+        self.vehicle_width = 4 * max(self.scaling/50, 1)
+        self.vehicle_height = 1.85 * max(self.scaling/50, 1)
 
         self.__plt_vehicle = None
         self.__plt_ref = None
@@ -126,6 +136,22 @@ class AnimateVehicle:
         self.figure, self.ax_main = plt.subplots(figsize=self.figure_size)
         self.axes.append(self.ax_main)
 
+
+        self.figure.patch.set_facecolor(C_BACKGROUND)
+
+        self.ax_main.set_facecolor(C_BACKGROUND)
+
+        # Remove space around plot
+        plt.gca().set_axis_off()
+        plt.subplots_adjust(
+            top=1, bottom=0, right=1, left=0, hspace=0, wspace=0
+        )
+        plt.margins(0, 0)
+        plt.gca().xaxis.set_major_locator(plt.NullLocator())
+        plt.gca().yaxis.set_major_locator(plt.NullLocator())
+
+        plt.axis("off")
+
         self.figure.show()
         self.figure.canvas.draw()
 
@@ -146,7 +172,7 @@ class AnimateVehicle:
 
         self.__plt_scenario, = self.ax_main.plot(
             full_ref.x, full_ref.y,
-            color='#d5d8dc', linewidth=1
+            color=C_FULL_REF, linewidth=1
         )
         self.ax_main.draw_artist(self.__plt_scenario)
 
@@ -176,8 +202,8 @@ class AnimateVehicle:
         y_head = [veh_y, veh_y+rotated_head[1]]
 
         if self.__plt_vehicle is None:
-            self.__plt_vehicle, = self.ax_main.plot(x_rect, y_rect, color='#323567')
-            self.__plt_vehicle_dir, = self.ax_main.plot(x_head, y_head, color='#a46773')
+            self.__plt_vehicle, = self.ax_main.plot(x_rect, y_rect, color=C_VEHICLE, linewidth=2)
+            self.__plt_vehicle_dir, = self.ax_main.plot(x_head, y_head, color=C_VEHICLE)
         else:
             self.__plt_vehicle.set_xdata(x_rect)
             self.__plt_vehicle.set_ydata(y_rect)
@@ -195,10 +221,8 @@ class AnimateVehicle:
         if self.__plt_ref is None:
             self.__plt_ref, = self.ax_main.plot(
                 ref.x, ref.y,
-                marker='.',
-                linewidth=0,
-                markersize=4,
-                color="#6a7170"
+                linewidth=3,
+                color=C_REF
             )
         else:
             self.__plt_ref.set_xdata(ref.x)
@@ -208,11 +232,11 @@ class AnimateVehicle:
     def __draw_controller_infos(self, ani_data) -> None:
         """Draw information in top right corner."""
         infos = [
+            f'delta_v: {ani_data.delta_v/np.pi*180:.1f} deg\n',
+            f'vx: {ani_data.veh_vx*3.6:.0f} km/h\n\n'
             f'e_y: {ani_data.e_y:.2f} m\n',
             f'e_psi: {ani_data.e_psi:+.4f} rad\n',
-            f'e_vx: {ani_data.e_vx*3.6:.1f} km/h \n\n',
-            f'delta_v: {ani_data.delta_v/np.pi*180:.1f} deg\n',
-            f'vx: {ani_data.veh_vx*3.6:.0f} km/h'
+            f'e_vx: {ani_data.e_vx*3.6:.1f} km/h'
         ]
         info_string = "".join(infos)
 
@@ -221,11 +245,11 @@ class AnimateVehicle:
         else:
             self.__anno_infos = self.ax_main.annotate(
                 info_string,
-                xy=(0.01, 0.5),
+                xy=(0.01, 0.85),
                 xycoords="axes fraction",
                 fontsize=14,
                 weight="bold",
-                color="#0eb9a2",
+                color=C_CTRL_INFO,
                 horizontalalignment="left",
                 verticalalignment="top"
             )
@@ -247,7 +271,7 @@ class AnimateVehicle:
                 xycoords="axes fraction",
                 fontsize=14,
                 weight="bold",
-                color="#3498db",
+                color=C_SIM_INFO,
                 horizontalalignment="left",
                 verticalalignment="top"
             )
@@ -266,7 +290,7 @@ class AnimateVehicle:
                 xycoords="axes fraction",
                 fontsize=8,
                 weight="normal",
-                color="#C70039",
+                color=C_FPS,
                 horizontalalignment="right",
                 verticalalignment="top"
             )
@@ -274,8 +298,8 @@ class AnimateVehicle:
 
     def __rescale(self, veh_x, veh_y) -> None:
         """Rescale plot based on vehicle position."""
-        self.ax_main.set_xlim([veh_x-self.zoom_factor, veh_x+self.zoom_factor])
-        self.ax_main.set_ylim([veh_y-self.zoom_factor, veh_y+self.zoom_factor])
+        self.ax_main.set_xlim([veh_x-self.scaling, veh_x+self.scaling])
+        self.ax_main.set_ylim([veh_y-self.scaling, veh_y+self.scaling])
 
     def __calculate_fps(self, ani_data) -> None:
         """Calculate frames per second."""

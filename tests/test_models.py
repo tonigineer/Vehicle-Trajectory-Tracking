@@ -45,5 +45,5 @@ def test_FSVehSingleTrack():
     assert Y > x0[1]
     assert psi > x0[2]
     assert psip > x0[3]
-    assert eps_float_equality(vx, x0[4]+u[1]*model.dt)
+    assert (vx < x0[4]+u[1]*model.dt and vx > x0[4])
     assert vy > x0[5]

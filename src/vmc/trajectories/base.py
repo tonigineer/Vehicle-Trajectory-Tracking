@@ -118,9 +118,6 @@ class OfflineReference():
     along the trajectory and the horizon `N_hor`.
     """
 
-    t_end = 15
-    lap_end = 2
-
     lead_node = True
     starting_node = 5  # node of x0 (beginning of simulation)
 

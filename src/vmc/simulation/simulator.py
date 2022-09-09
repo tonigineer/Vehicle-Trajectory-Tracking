@@ -13,6 +13,9 @@ class Simulator():
     laps_max = 1
     lap_steps = []
 
+    t_max = 2000  # needed for memory allocation
+                  # TODO: dynamic memory allocation during sim
+
     def __init__(self, *, model, scenario) -> None:
         """Initiate class with model."""
         self.model = model
@@ -35,7 +38,7 @@ class Simulator():
         self.lap = 1
         self.ref_s_prev = 0
         self.step = 0
-        self.steps = int(self.scenario.t_end/self.model.dt) + 1
+        self.steps = int(self.t_max/self.model.dt) + 1
 
         self.sim = None
         self.__collect_sim_data()
@@ -96,7 +99,7 @@ class Simulator():
             self.sim[key] = value[1:idx, :, :] if len(value.shape) == 3 else value[1:idx, :]
 
     def __show_progress(self, t):
-        info_string = f'Sim running ...  {t:4.2f}s /  {self.scenario.t_end}s [ﯩ: {self.lap} / {self.laps_max}]'
+        info_string = f'Sim running ...  {t:4.2f}s /  {self.t_max}s [ﯩ: {self.lap} / {self.laps_max}]'
         print(info_string, end='\r')
 
     def run(self):
