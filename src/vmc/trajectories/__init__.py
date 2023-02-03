@@ -1,11 +1,12 @@
 """Provide desired functionality to root level of module."""
 
-from vmc.trajectories.base import OfflineReference
-from vmc.trajectories.base import mod_range
-from vmc.trajectories.base import Node, Position, Trajectory
+from vmc.trajectories.definition import Node, Position, Trajectory
+from vmc.trajectories.misc import mod_range
+from vmc.trajectories.references import ReferencePath, ReferenceTube
 
 __all__ = [
-    'OfflineReference',
+    'ReferencePath',
+    'ReferenceTube',
     'mod_range',
     'Node',
     'Position',

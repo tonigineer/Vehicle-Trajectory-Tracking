@@ -3,7 +3,7 @@
 from vmc.controller import TrajTrackPID
 from vmc.models import FSVehSingleTrack
 from vmc.simulation import Simulator, Scenario
-from vmc.trajectories import OfflineReference
+from vmc.trajectories import ReferencePath
 
 
 def main():
@@ -13,7 +13,7 @@ def main():
 
     scenario = Scenario(
         TrajTrackPID(),
-        OfflineReference(TRACK_FILEPATH, N_NODES)
+        ReferencePath(TRACK_FILEPATH, N_NODES)
     )
 
     fs_veh_model = FSVehSingleTrack()
