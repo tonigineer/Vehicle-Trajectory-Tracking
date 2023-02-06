@@ -1,4 +1,4 @@
-name: Main workflow with Carla as Simulation
+name: Main workflow with Carla as simulation
 
 on:
   - push
