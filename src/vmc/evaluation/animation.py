@@ -1,6 +1,5 @@
 """Main module for animation tasks."""
 
-from curses import COLOR_GREEN
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -129,7 +128,7 @@ class AnimateVehicle:
         self.dx_rect = [-dx, dx, dx, -dx, -dx]
         self.dy_rect = [-dy, -dy, dy, dy, -dy]
 
-    def __create_figure(self, full_screen=False) -> None:
+    def __create_figure(self) -> None:
         """Create/initialize figure and axes."""
         self.axes = list()
 
@@ -154,10 +153,6 @@ class AnimateVehicle:
 
         self.figure.show()
         self.figure.canvas.draw()
-
-        if full_screen:
-            manager = plt.get_current_fig_manager()
-            manager.full_screen_toggle()
 
         plt.title(self.figure_title, fontsize=20)
         plt.xlabel(self.x_label)
@@ -353,19 +348,19 @@ class AnimateVehicle:
         self.__render_axes()
 
 
-if __name__ == "__main__":
-    # Draw vehicle and make full rotation from east to east
-    dt = 0.01
-    t_end = 5
+# if __name__ == "__main__":
+#     # Draw vehicle and make full rotation from east to east
+#     dt = 0.01
+#     t_end = 5
 
-    ani = AnimateVehicle(dt=dt, draw_rate=0.1)
-    ani.fps_max = 10
+#     ani = AnimateVehicle(dt=dt, draw_rate=0.1)
+#     ani.fps_max = 10
 
-    ani_data = AnimationData()
-    ani_data.veh_vx = 72/3.6
+#     ani_data = AnimationData()
+#     ani_data.veh_vx = 72/3.6
 
-    for idx, t in enumerate(np.arange(0, t_end, dt)):
-        ani_data.step = idx
-        ani_data.t = t
-        ani_data.veh_psi = 2*np.pi * t/t_end
-        ani.draw_next_frame(ani_data)
+#     for idx, t in enumerate(np.arange(0, t_end, dt)):
+#         ani_data.step = idx
+#         ani_data.t = t
+#         ani_data.veh_psi = 2*np.pi * t/t_end
+#         ani.draw_next_frame(ani_data)

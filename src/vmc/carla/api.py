@@ -3,12 +3,22 @@ import carla
 import random
 import platform
 
-
 import pygame as pg
 import numpy as np
 
 from time import perf_counter, sleep
-from typing import Tuple, List
+from typing import Tuple, List, Dict
+
+
+DEFAULT_PATH = '~/carla/0_9_13/'
+DEFAULT_PATH_WIN = 'Carla/releases/0_9_13'
+
+DEFAULT_HOST = '127.0.0.1'
+DEFAULT_PORT = 2000
+
+
+def move_resize_window(window_name: str, x: int, y: int, w: int, h: int):
+    os.system(f'wmctrl -r {window_name} -e 0,{x},{y},{w},{h} &')
 
 
 class DisplayManager:
@@ -157,30 +167,28 @@ class SensorManager:
         self.sensor.destroy()
 
 
-class CarlaApi():
+class CarlaApi:
 
-    DEFAULT_PATH = '~/carla/0_9_13/'
-    DEFAULT_PATH_WIN = 'Carla/releases/0_9_13'
-
-    DEFAULT_HOST = '127.0.0.1'
-    DEFAULT_PORT = 2000
-
-    MONITOR_WIDTH = 480
-    MONITOR_HEIGHT = 320
-
-    def __init__(self):
-        pass
+    # Hardcoded for 4k
+    # TODO based on current resolution
+    VEH_MONITOR_WIDTH = 1920
+    VEH_MONITOR_HEIGHT = 1080
 
     @classmethod
     def start_server(cls) -> None:
         """Start Carla from default path and resize window."""
+        if cls._server_is_running():
+            return
+
         if platform.system() == 'Windows':
-            os.system(f'start ../{cls.DEFAULT_PATH_WIN}/WindowsNoEditor/CarlaUE4.exe')
+            os.system(
+                f'start ../{DEFAULT_PATH_WIN}/WindowsNoEditor/CarlaUE4.exe'
+            )
         elif platform.system() == 'Linux':
             # NOTE: `sudo apt install wmctrl` on Ubuntu 20.04 needed
-            os.system(f'{cls.DEFAULT_PATH}/CarlaUE4.sh -windowed -ResX={cls.MONITOR_WIDTH} -ResY={cls.MONITOR_HEIGHT} &')
-            sleep(5)
-            os.system(f'wmctrl -r CarlaUE4 -e 0,1,1,{cls.MONITOR_WIDTH},{cls.MONITOR_HEIGHT} &')
+            os.system(
+                f'{DEFAULT_PATH}/CarlaUE4.sh -windowed -ResX=480 -ResY=320 &'
+            )
         else:
             raise NotImplementedError(
                 f'No method implemented for operating system: {platform.system()}'
@@ -199,11 +207,25 @@ class CarlaApi():
             )
 
     @classmethod
-    def _connect_to_server(cls) -> carla.Client:
-        """Connect to Carla as client and return object."""
-        client = carla.Client(cls.DEFAULT_HOST, cls.DEFAULT_PORT)
-        client.set_timeout(5.0)
+    def _server_is_running(cls) -> bool:
+        if platform.system() == 'Windows':
+            raise NotImplementedError(
+                f'No method implemented for operating system: {platform.system()}'
+            )
+        elif platform.system() == 'Linux':
+            pid = os.system('pgrep -f carla')
+        else:
+            raise NotImplementedError(
+                f'No method implemented for operating system: {platform.system()}'
+            )
 
+        return int(pid) != 0
+
+    @staticmethod
+    def _connect_to_server() -> carla.Client:
+        """Connect to Carla as client and return object."""
+        client = carla.Client(DEFAULT_HOST, DEFAULT_PORT)
+        client.set_timeout(1.0)
         return client
 
     @classmethod
@@ -219,55 +241,63 @@ class CarlaApi():
                 actor.destroy()
 
     @classmethod
-    def _spawn_ego_vehicle(cls) -> carla.Actor:
-        """Spawn ego vehicle and activate autopilot."""
+    def prepare_vehicle(cls, *,
+                        spawn_point=None, sensory=None) -> None:
+        """Open Pygame window to show camera mounted on ego vehicle."""
         client = cls._connect_to_server()
         world = client.get_world()
+
+        # Handle defaults
+        if not sensory:
+            sensory = [
+                {"type": "RGBCamera", "x": -4, "y": 0, "z": 2.4,
+                 "roll": 0, "pitch": -8, "yaw": 0},
+                {"type": "RGBCamera", "x": 0, "y": 0, "z": 20,
+                 "roll": 0, "pitch": -90, "yaw": 0}
+            ]
+
+        if not spawn_point:
+            spawn_point = random.choice(world.get_map().get_spawn_points())
 
         # Spawn vehicle
         bp_lib = world.get_blueprint_library()
         vehicle_bp = bp_lib.filter("mercedes*")[0]
 
-        spawn_point = random.choice(world.get_map().get_spawn_points())
+        if not spawn_point:
+            spawn_point = cls.random_spawn_point(world)
+
         vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
 
-        vehicle.set_autopilot(True)
-
-        return vehicle
-
-    @classmethod
-    def show_vehicle_monitor(cls, camera_angles=[0]) -> None:
-        """Open Pygame window to show camera mounted on ego vehicle."""
-        client = cls._connect_to_server()
-        world = client.get_world()
-
+        # Set up sensory and monitoring system in Pygame
         display_manager = DisplayManager(
-            grid_size=[1, len(camera_angles)],
-            window_size=[cls.MONITOR_WIDTH, cls.MONITOR_HEIGHT]
+            grid_size=[1, len(sensory)],
+            window_size=[cls.VEH_MONITOR_WIDTH, cls.VEH_MONITOR_HEIGHT]
         )
 
-        vehicle = cls._spawn_ego_vehicle()
-
-        # Spawn sensory
-        for idx, angle in enumerate(camera_angles):
+        for idx, sensor in enumerate(sensory):
+            name, x, y, z, roll, pitch, yaw = sensor.values()
             SensorManager(
-                world, display_manager, 'RGBCamera',
+                world, display_manager, name,
                 carla.Transform(
-                    carla.Location(x=0, z=2.4), carla.Rotation(yaw=angle)
+                    carla.Location(x=x, y=y, z=z),
+                    carla.Rotation(roll=roll, pitch=pitch, yaw=yaw)
                 ), vehicle, {}, display_pos=[0, idx]
             )
+
+        # Arrange windows
+        display_manager.render()  # render empty to show window for arrangement
+        cls._arrange_windows([
+            ('pygame window', 1, 1081, 1920, 1080),
+            ('CarlaUE4', 1, 1, 1920, 1080*0.875)
+        ])
 
         try:
             while True:
                 # Carla Tick
                 # if args.sync:
-                world.tick()
+                # world.tick()
                 # else:
-                #     world.wait_for_tick()
-
-                t = vehicle.get_transform()
-
-                print(t)
+                # world.wait_for_tick()
 
                 # Render received data
                 display_manager.render()
@@ -277,11 +307,20 @@ class CarlaApi():
             display_manager.destroy()
 
 
-if __name__ == '__main__':
-    # CarlaApi.start_server()
-    # CarlaApi.kill_server()
-    # CarlaApi.set_autopilot_for_population(True)
+    def _arrange_windows(settings):
+        """Arrange windows according to settings."""
+        for item in settings:
+            move_resize_window(*item)
 
-    # CarlaApi.remove_population()
-    # sleep(6)
-    CarlaApi.show_vehicle_monitor()
+
+if __name__ == '__main__':
+    """Example including all functionality."""
+    try:
+        CarlaApi.start_server()
+        sleep(5)
+        CarlaApi.remove_population()
+        CarlaApi.prepare_vehicle()
+    except Exception as E:
+        print(E)
+    finally:
+        CarlaApi.kill_server()

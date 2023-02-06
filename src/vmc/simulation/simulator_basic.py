@@ -6,7 +6,7 @@ from vmc.evaluation.evaluation import Evaluation, ScatterEntry, SubplotLayout
 from vmc.evaluation.animation import AnimateVehicle, AnimationData
 
 
-class Simulator():
+class BasicSimulator():
     """Framework to run simulation of models with a desired scenario."""
 
     enable_animation = True
@@ -20,15 +20,15 @@ class Simulator():
         """Initiate class with model."""
         self.model = model
         self.scenario = scenario
+        self.ani = AnimateVehicle(
+            dt=self.model.dt, draw_rate=0.1
+        )
 
     def __prepare_run(self) -> None:
         self.exec_time_sim = 0
         self.exec_time_control = 0
 
         if self.enable_animation:
-            self.ani = AnimateVehicle(
-                dt=self.model.dt, draw_rate=0.1
-            )
             self.ani_data = AnimationData()
             self.ani_data.laps_max = self.laps_max
             if self.scenario.reference:

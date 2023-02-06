@@ -2,15 +2,15 @@
 
 import numpy as np
 
-from vmc.trajectories import OfflineReference, Position
+from vmc.trajectories import ReferencePath, Position
 
 
-def test_OfflineReference():
+def test_ReferencePath():
     """Return trajectory from offline reference."""
-    TRACK_FILEPATH = './examples/tracks/Algarve_International_Circuit_02g_02g_128.json'
+    TRACK_FILEPATH = './examples/basic/tracks/Algarve_International_Circuit_02g_02g_128.json'
     N_NODES = 25
 
-    Ref = OfflineReference(TRACK_FILEPATH, N_NODES)
+    Ref = ReferencePath(TRACK_FILEPATH, N_NODES)
 
     for x, y in zip(Ref.t.x, Ref.t.y):
         pos = Position(x, y)

@@ -122,19 +122,18 @@ def heading_error(psi_ref: float, psi_vehicle: float) -> float:
 
     Function handles warp around at 0/2pi.
 
-    Arguments
+    Arguments:
     ---------
-    `psi_ref` : float
+    psi_ref : float
         Heading of trajectory/reference
-    `psi_vehicle` : float
+    psi_vehicle : float
         Heading of vehicle
 
-    Return
+    Return:
     ------
-    `heading_error` : float
+    heading_error : float
         Angle difference between both inputs in rad.
 
-    NOTE: Arguments can be swapped.
     """
     cp = np.cos(psi_ref)*np.sin(psi_vehicle) - \
         np.sin(psi_ref)*np.cos(psi_vehicle)

@@ -4,8 +4,8 @@ import numpy as np
 
 from vmc.controller import SteerRamp, TrajTrackPID
 from vmc.models import FSVehSingleTrack
-from vmc.simulation import Simulator, Scenario
-from vmc.trajectories import OfflineReference
+from vmc.simulation import BasicSimulator, Scenario
+from vmc.trajectories import ReferencePath
 
 
 def test_simulator_for_open_loop():
@@ -15,7 +15,7 @@ def test_simulator_for_open_loop():
 
     t_max = scenario_ol_ctrl.controller.t_end
 
-    Sim = Simulator(model=fs_veh_model, scenario=scenario_ol_ctrl)
+    Sim = BasicSimulator(model=fs_veh_model, scenario=scenario_ol_ctrl)
     Sim.t_max = t_max
     Sim.run()
 
@@ -32,18 +32,19 @@ def test_simulator_for_open_loop():
 
 def test_simulator_for_reference_circuit():
     """Run open loop and check if simulation data is plausible."""
-    TRACK_FILEPATH = './examples/tracks/Algarve_International_Circuit_03g_06g_130.json'
+    TRACK_FILEPATH = './examples/basic/tracks/Algarve_International_Circuit_03g_06g_130.json'
     N_NODES = 25
 
     scenario = Scenario(
         TrajTrackPID(),
-        OfflineReference(TRACK_FILEPATH, N_NODES)
+        ReferencePath(TRACK_FILEPATH, N_NODES)
     )
     fs_veh_model = FSVehSingleTrack()
 
-    Sim = Simulator(model=fs_veh_model, scenario=scenario)
+    Sim = BasicSimulator(model=fs_veh_model, scenario=scenario)
     Sim.t_max = 200
     Sim.laps_max = 1
+    Sim.ani.fps_max = 60
     Sim.run()
     Sim.show_states_and_input()
     Sim.show_tracking()
