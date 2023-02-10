@@ -1,5 +1,6 @@
 """Provide desired functionality to root level of module."""
 
+from vmc.carla import CarlaApi
 import vmc.controller as controller
 import vmc.models as models
 import vmc.simulation as simulation
@@ -11,5 +12,6 @@ __all__ = [
     'models',
     'simulation',
     'evaluation',
-    'trajectories'
+    'trajectories',
+    'CarlaApi'
 ]

@@ -2,12 +2,15 @@ import os
 import carla
 import random
 import platform
+import subprocess
 
 import pygame as pg
 import numpy as np
 
 from time import perf_counter, sleep
 from typing import Tuple, List, Dict
+
+from dataclasses import dataclass
 
 
 DEFAULT_PATH = '~/carla/0_9_13/'
@@ -17,8 +20,21 @@ DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 2000
 
 
-def move_resize_window(window_name: str, x: int, y: int, w: int, h: int):
-    os.system(f'wmctrl -r {window_name} -e 0,{x},{y},{w},{h} &')
+@dataclass
+class SensorSetup:
+
+    sensor_type: str
+    x: float
+    y: float
+    z: float
+    roll: float
+    pitch: float
+    yaw: float
+
+    def __init__(self, sensor_type: str, xyz: Tuple[float], rpy: Tuple[float]):
+        self.sensor_type = sensor_type
+        self.x, self.y, self.z = xyz
+        self.roll, self.pitch, self.yaw = rpy
 
 
 class DisplayManager:
@@ -175,9 +191,47 @@ class CarlaApi:
     VEH_MONITOR_HEIGHT = 1080
 
     @classmethod
-    def start_server(cls) -> None:
-        """Start Carla from default path and resize window."""
-        if cls._server_is_running():
+    def start_dedicated_server(cls) -> bool:
+        """Start a Carla in a `dedicated` process.
+
+        Usage
+        -----
+        >>> from vmc import CarlaApi
+        >>> CarlaApi.start_dedicated_server()
+        True
+        # ... continue with your code ...
+
+        Returns
+        -------
+        status : bool
+            `True` when server was started
+
+        """
+        # py_code = \
+        #     f'from vmc import CarlaApi; CarlaApi.__start_server()'
+        # os.system(f'python -c "{py_code}" &')
+        cls.__start_server()
+
+        WAIT_SECONDS = 0.5
+        MAX_TIMEOUTS = 10
+
+        timeouts = 0
+        while timeouts < MAX_TIMEOUTS:
+            if cls.server_is_running():
+                return True
+            timeouts += 1
+            sleep(0.5)
+
+        print(f'Server was not ready after {MAX_TIMEOUTS*WAIT_SECONDS} seconds.')
+        return False
+
+    @classmethod
+    def __start_server(cls) -> None:
+        """Start Carla from default path as `dedicated` process.
+
+        Distinguish between operating systems.
+        """
+        if cls.server_is_running():
             return
 
         if platform.system() == 'Windows':
@@ -187,8 +241,36 @@ class CarlaApi:
         elif platform.system() == 'Linux':
             # NOTE: `sudo apt install wmctrl` on Ubuntu 20.04 needed
             os.system(
-                f'{DEFAULT_PATH}/CarlaUE4.sh -windowed -ResX=480 -ResY=320 &'
+                f'{DEFAULT_PATH}/CarlaUE4.sh &'
             )
+        else:
+            raise NotImplementedError(
+                f'No method implemented for operating system: {platform.system()}'
+            )
+
+    @staticmethod
+    def server_is_running() -> bool:
+        """Check if server is running by looking for process name.
+
+        Usage
+        -----
+        >>> from vmc import CarlaApi
+        >>> CarlaApi.server_is_running()
+        True
+
+        Returns
+        -------
+        status : bool
+            `True` if server is running (process called `CarlaUE4` active)
+
+        """
+        if platform.system() == 'Windows':
+            raise NotImplementedError(
+                f'No method implemented for operating system: {platform.system()}'
+            )
+        elif platform.system() == 'Linux':
+            stdout = subprocess.check_output('pgrep -f CarlaUE4', shell=True)
+            return len(stdout.splitlines()) > 1
         else:
             raise NotImplementedError(
                 f'No method implemented for operating system: {platform.system()}'
@@ -196,7 +278,20 @@ class CarlaApi:
 
     @classmethod
     def kill_server(cls) -> None:
-        """Terminate Carla via command line."""
+        """Terminate Carla via command line.
+
+        Function distinguish between operating systems and
+        uses appropriate command.
+
+        Usage
+        -----
+        >>> from vmc import CarlaApi
+        >>> CarlaApi.kill_server()
+
+        """
+        if cls.server_is_running():
+            return
+
         if platform.system() == 'Windows':
             os.system('taskkill /IM CarlaUE4.exe /F')
         elif platform.system() == 'Linux':
@@ -206,54 +301,111 @@ class CarlaApi:
                 f'No method implemented for operating system: {platform.system()}'
             )
 
-    @classmethod
-    def _server_is_running(cls) -> bool:
-        if platform.system() == 'Windows':
-            raise NotImplementedError(
-                f'No method implemented for operating system: {platform.system()}'
-            )
-        elif platform.system() == 'Linux':
-            pid = os.system('pgrep -f carla')
-        else:
-            raise NotImplementedError(
-                f'No method implemented for operating system: {platform.system()}'
-            )
-
-        return int(pid) != 0
-
     @staticmethod
-    def _connect_to_server() -> carla.Client:
-        """Connect to Carla as client and return object."""
+    def connect_to_server(timeout: float = 2.0) -> carla.Client:
+        """Connect to Carla as client and return object.
+
+        Usage
+        -----
+        >>> from vmc import CarlaApi
+        >>> client = CarlaApi.connect_to_server(3.0)
+        # ... continue with your code ...
+
+        Arguments
+        ---------
+        timeout : float (default 2.0)
+            `Time` before client connection is timed out
+
+        Returns
+        -------
+        client : carla.Client
+            Client `object` to interact with Carla server
+
+        """
         client = carla.Client(DEFAULT_HOST, DEFAULT_PORT)
-        client.set_timeout(1.0)
+        client.set_timeout(timeout)
         return client
 
     @classmethod
-    def remove_population(cls):
-        """Remove all vehicle and pedestrian from world."""
-        client = cls._connect_to_server()
+    def remove_all_actors(cls, types: List[str]) -> None:
+        """Remove all vehicle and pedestrian from world.
+
+        Usage
+        -----
+        >>> from vmc import CarlaApi
+        >>> CarlaApi.remove_actors(['vehicle', 'walker'])
+
+        Arguments
+        ---------
+        types : list of str
+            `Actor` types to be removed (checked if `type-string`
+            in `actor.type_id`)
+
+        """
+        client = cls.connect_to_server()
         world = client.get_world()
 
         for actor in world.get_actors():
-            if 'vehicle' in actor.type_id:
-                actor.destroy()
-            if 'walker' in actor.type_id:
-                actor.destroy()
+            for _type in types:
+                if _type in actor.type_id:
+                    actor.destroy()
 
     @classmethod
-    def prepare_vehicle(cls, *,
-                        spawn_point=None, sensory=None) -> None:
-        """Open Pygame window to show camera mounted on ego vehicle."""
-        client = cls._connect_to_server()
+    def start_dedicated_vehicle_monitor(cls):
+        # c = f'from vmc import CarlaApi; ' + \
+        #     f'CarlaApi.prepare_ego_vehicle()'
+        # os.system('python -c "from vmc import CarlaApi; CarlaApi.prepare_ego_vehicle(
+        #         spawn_point=carla.Transform(
+        #             carla.Location(-76.0, -70.0, 0.6),
+        #             carla.Rotation(0,180,0)
+        #         )," &')
+        pass
+
+    @staticmethod
+    def __start_vehilce_monitor():
+        pass
+
+    @classmethod
+    def prepare_ego_vehicle(cls, *, spawn_point=None, sensory=None) -> None:
+        """Prepare Ego Vehicle and open monitor app in Pygame.
+
+        Note: Vehicle is spawned at `spawn_point` with a mounted set of `sensory`. If
+        keyword arguments are not given, a hardcoded default sensory with a
+        random spawn point is used.
+
+        Usage
+        -----
+        >>> from vmc import CarlaApi
+        >>> CarlaApi.prepare_ego_vehicle(
+                spawn_point=carla.Transform(
+                    carla.Location(-76.0, -70.0, 0.6),
+                    carla.Rotation(0,180,0)
+                ),
+                sensory=[
+                    SensorSetup("RGBCamera", (-4, 0, 2.4), (0, -8, 0))
+                ]
+            )
+        # Or use default setup
+        >>> CarlaApi.prepare_ego_vehicle()
+
+        Arguments
+        ---------
+        spawn_point : carla.Transform
+            `Location` and `orientation`, where Ego Vehicle is spawned.
+
+        sensory : List with sensor setups (SensorSetup class)
+            Sensor setup with different sensors mounted within the vehicle's
+            coordinate system.
+
+        """
+        client = cls.connect_to_server()
         world = client.get_world()
 
         # Handle defaults
         if not sensory:
             sensory = [
-                {"type": "RGBCamera", "x": -4, "y": 0, "z": 2.4,
-                 "roll": 0, "pitch": -8, "yaw": 0},
-                {"type": "RGBCamera", "x": 0, "y": 0, "z": 20,
-                 "roll": 0, "pitch": -90, "yaw": 0}
+                SensorSetup("RGBCamera", (-4, 0, 2.4), (0, -8, 0)),
+                SensorSetup("RGBCamera", (0, 0, 20), (0, -90, 0))
             ]
 
         if not spawn_point:
@@ -275,21 +427,17 @@ class CarlaApi:
         )
 
         for idx, sensor in enumerate(sensory):
-            name, x, y, z, roll, pitch, yaw = sensor.values()
             SensorManager(
-                world, display_manager, name,
+                world, display_manager, sensor.sensor_type,
                 carla.Transform(
-                    carla.Location(x=x, y=y, z=z),
-                    carla.Rotation(roll=roll, pitch=pitch, yaw=yaw)
+                    carla.Location(
+                        x=sensor.x, y=sensor.y, z=sensor.z
+                    ),
+                    carla.Rotation(
+                        roll=sensor.roll, pitch=sensor.pitch, yaw=sensor.yaw
+                    )
                 ), vehicle, {}, display_pos=[0, idx]
             )
-
-        # Arrange windows
-        display_manager.render()  # render empty to show window for arrangement
-        cls._arrange_windows([
-            ('pygame window', 1, 1081, 1920, 1080),
-            ('CarlaUE4', 1, 1, 1920, 1080*0.875)
-        ])
 
         try:
             while True:
@@ -306,21 +454,52 @@ class CarlaApi:
         finally:
             display_manager.destroy()
 
+    @staticmethod
+    def arrange_window(*, window_name: str, position: Tuple[int]) -> None:
+        """Arrange window on desktop according to position definition.
 
-    def _arrange_windows(settings):
-        """Arrange windows according to settings."""
-        for item in settings:
-            move_resize_window(*item)
+        Usage
+        -----
+        >>> from vmc import CarlaApi
+        >>> cls.arrange_windows(
+                window_name='CarlaUE4',
+                position=(1, 1, 1920, 1080))
+            )
+
+        Arguments
+        ---------
+        window_name : str
+            `Name` of window to move and resize
+        position : Tuple with (x, y, w, h)
+            `x` and `y` position of the top left  corner of window,
+            width `w` and height `h` of window
+
+        """
+        x, y, w, h = position
+        os.system(f'wmctrl -r {window_name} -e 0,{x},{y},{w},{h} &')
 
 
 if __name__ == '__main__':
     """Example including all functionality."""
-    try:
-        CarlaApi.start_server()
-        sleep(5)
-        CarlaApi.remove_population()
-        CarlaApi.prepare_vehicle()
-    except Exception as E:
-        print(E)
-    finally:
-        CarlaApi.kill_server()
+    # try:
+    #     CarlaApi.start_dedicated_server()
+    # #     sleep(5)
+    # #     CarlaApi.remove_population()
+    # #     CarlaApi.prepare_vehicle()
+    # # except Exception as E:
+    # #     print(E)
+    # finally:
+
+    #     CarlaApi.kill_server()
+    CarlaApi.start_dedicated_server()
+    sleep(5)
+    CarlaApi.prepare_ego_vehicle()
+    sleep(5)
+    CarlaApi.arrange_window(
+        window_name='CarlaUE4',
+        position=(1, 1, 1920, 1080*0.875)
+    )
+    CarlaApi.arrange_window(
+        window_name='pygame window',
+        position=(1, 1081, 1920, 1080)
+    )
