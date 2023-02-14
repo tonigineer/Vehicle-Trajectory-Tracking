@@ -1,17 +1,19 @@
 import os
+import re
 import carla
 import random
 import platform
 import subprocess
 
-import pygame as pg
 import numpy as np
 
 from time import perf_counter, sleep
-from typing import Tuple, List, Dict
+from typing import Tuple, List
 
 from dataclasses import dataclass
 
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = 'hide'
+import pygame as pg
 
 DEFAULT_PATH = '~/carla/0_9_13/'
 DEFAULT_PATH_WIN = 'Carla/releases/0_9_13'
@@ -185,10 +187,7 @@ class SensorManager:
 
 class CarlaApi:
 
-    # Hardcoded for 4k
-    # TODO based on current resolution
-    VEH_MONITOR_WIDTH = 1920
-    VEH_MONITOR_HEIGHT = 1080
+    EGO_VEHICLE = 'model3'
 
     @classmethod
     def start_dedicated_server(cls) -> bool:
@@ -350,28 +349,48 @@ class CarlaApi:
                 if _type in actor.type_id:
                     actor.destroy()
 
-    @classmethod
-    def start_dedicated_vehicle_monitor(cls):
-        # c = f'from vmc import CarlaApi; ' + \
-        #     f'CarlaApi.prepare_ego_vehicle()'
-        # os.system('python -c "from vmc import CarlaApi; CarlaApi.prepare_ego_vehicle(
-        #         spawn_point=carla.Transform(
-        #             carla.Location(-76.0, -70.0, 0.6),
-        #             carla.Rotation(0,180,0)
-        #         )," &')
-        pass
-
     @staticmethod
-    def __start_vehilce_monitor():
-        pass
+    def start_dedicated_vehicle_monitor() -> None:
+        """Run `start_vehicle_monitor` in a dedicated process with defaults.
+
+        Note: Refer to`CarlaApi.start_vehicle_monitor()` for a more detailed
+        description. Default settings contain two RGB cameras and a random
+        spawn point. Use `CarlaApi.respawn_ego_vehicle()` to move vehicle
+        to desired starting position.
+
+        Usage
+        -----
+        >>> from vmc import CarlaApi
+        >>> CarlaApi.start_dedicated_vehicle_monitor()
+
+        """
+        os.system(
+            'python -c "from vmc import CarlaApi; CarlaApi.start_vehicle_monitor()" & '
+        )
 
     @classmethod
-    def prepare_ego_vehicle(cls, *, spawn_point=None, sensory=None) -> None:
+    def start_vehicle_monitor(cls, *,
+                              spawn_point=None,
+                              sensory=None,
+                              window_size=None
+                              ) -> None:
         """Prepare Ego Vehicle and open monitor app in Pygame.
 
-        Note: Vehicle is spawned at `spawn_point` with a mounted set of `sensory`. If
-        keyword arguments are not given, a hardcoded default sensory with a
-        random spawn point is used.
+        Note: Vehicle is spawned at `spawn_point` with a mounted set of
+        `sensory`. If keyword arguments are not given, a hardcoded default
+        sensory with a random spawn point is used.
+
+        Arguments
+        ---------
+        spawn_point : carla.Transform
+            `Location` and `orientation`, where Ego Vehicle is spawned.
+
+        sensory : List with sensor setups (SensorSetup class)
+            Sensor setup with different sensors mounted within the vehicle's
+            coordinate system.
+
+        window_size : Tuple of int
+            Width and height of monitor window.
 
         Usage
         -----
@@ -387,15 +406,6 @@ class CarlaApi:
             )
         # Or use default setup
         >>> CarlaApi.prepare_ego_vehicle()
-
-        Arguments
-        ---------
-        spawn_point : carla.Transform
-            `Location` and `orientation`, where Ego Vehicle is spawned.
-
-        sensory : List with sensor setups (SensorSetup class)
-            Sensor setup with different sensors mounted within the vehicle's
-            coordinate system.
 
         """
         client = cls.connect_to_server()
@@ -413,7 +423,7 @@ class CarlaApi:
 
         # Spawn vehicle
         bp_lib = world.get_blueprint_library()
-        vehicle_bp = bp_lib.filter("mercedes*")[0]
+        vehicle_bp = bp_lib.filter(cls.EGO_VEHICLE)[0]
 
         if not spawn_point:
             spawn_point = cls.random_spawn_point(world)
@@ -421,9 +431,14 @@ class CarlaApi:
         vehicle = world.try_spawn_actor(vehicle_bp, spawn_point)
 
         # Set up sensory and monitoring system in Pygame
+        if window_size:
+            width, height = window_size
+        else:
+            width, height = cls.get_full_resolution()
+
         display_manager = DisplayManager(
             grid_size=[1, len(sensory)],
-            window_size=[cls.VEH_MONITOR_WIDTH, cls.VEH_MONITOR_HEIGHT]
+            window_size=[width // 4, height // 2]
         )
 
         for idx, sensor in enumerate(sensory):
@@ -441,6 +456,7 @@ class CarlaApi:
 
         try:
             while True:
+                # TODO: Sync needed?
                 # Carla Tick
                 # if args.sync:
                 # world.tick()
@@ -454,17 +470,22 @@ class CarlaApi:
         finally:
             display_manager.destroy()
 
+    @classmethod
+    def get_ego_vehicle(cls) -> carla.Actor:
+        client = cls.connect_to_server()
+        world = client.get_world()
+
+        for actor in world.get_actors():
+            if cls.EGO_VEHICLE in actor.type_id:
+                return actor
+
+    @classmethod
+    def respawn_ego_vehicle(cls, spawn_point: carla.Transform) -> None:
+        cls.get_ego_vehicle().set_transform(spawn_point)
+
     @staticmethod
     def arrange_window(*, window_name: str, position: Tuple[int]) -> None:
         """Arrange window on desktop according to position definition.
-
-        Usage
-        -----
-        >>> from vmc import CarlaApi
-        >>> cls.arrange_windows(
-                window_name='CarlaUE4',
-                position=(1, 1, 1920, 1080))
-            )
 
         Arguments
         ---------
@@ -474,32 +495,56 @@ class CarlaApi:
             `x` and `y` position of the top left  corner of window,
             width `w` and height `h` of window
 
+        Usage
+        -----
+        >>> from vmc import CarlaApi
+        >>> cls.arrange_windows(
+                window_name='CarlaUE4',
+                position=(1, 1, 1920, 1080))
+            )
+
         """
         x, y, w, h = position
         os.system(f'wmctrl -r {window_name} -e 0,{x},{y},{w},{h} &')
 
+    @staticmethod
+    def get_full_resolution() -> Tuple[int, int]:
+        """Get `width` and `height` of full display."""
+        stdout = subprocess.check_output(
+            "xdpyinfo | awk '/dimensions/{print $2}'", shell=True
+        )
+        return tuple(map(int, re.findall('[0-9]+', str(stdout))))
 
-if __name__ == '__main__':
-    """Example including all functionality."""
-    # try:
-    #     CarlaApi.start_dedicated_server()
-    # #     sleep(5)
-    # #     CarlaApi.remove_population()
-    # #     CarlaApi.prepare_vehicle()
-    # # except Exception as E:
-    # #     print(E)
-    # finally:
+    @classmethod
+    def get_map_name(cls) -> str:
+        client = cls.connect_to_server()
+        world = client.get_world()
+        return world.get_map().name.split('/')[-1]
 
-    #     CarlaApi.kill_server()
+
+def main():
+    """Call functionality for development and testing."""
     CarlaApi.start_dedicated_server()
-    sleep(5)
-    CarlaApi.prepare_ego_vehicle()
     sleep(5)
     CarlaApi.arrange_window(
         window_name='CarlaUE4',
-        position=(1, 1, 1920, 1080*0.875)
+        position=(1, 1, 1920, 1080*0.8)
     )
+
+    CarlaApi.start_dedicated_vehicle_monitor()
+    sleep(2)
     CarlaApi.arrange_window(
         window_name='pygame window',
         position=(1, 1081, 1920, 1080)
     )
+
+    sleep(3)
+    spawn_point = carla.Transform(
+        carla.Location(x=1, y=1, z=1),
+        carla.Rotation(roll=0, pitch=0, yaw=-90)
+    )
+    CarlaApi.respawn_ego_vehicle(spawn_point)
+
+
+if __name__ == '__main__':
+    main()

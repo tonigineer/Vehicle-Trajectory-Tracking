@@ -1,12 +1,14 @@
 """Simulation framework."""
 
 import carla
-import random
 
 import numpy as np
 
+from time import sleep
+
 from vmc.evaluation.evaluation import Evaluation, ScatterEntry, SubplotLayout
 from vmc.evaluation.animation import AnimateVehicle, AnimationData
+from vmc.carla.api import CarlaApi
 
 
 class CarlaSimulator():
@@ -15,7 +17,6 @@ class CarlaSimulator():
     CARLA_HOST = '127.0.0.1'
     CARLA_PORT = 2000
 
-    enable_animation = True
     laps_max = 10
     lap_steps = []
 
@@ -30,16 +31,6 @@ class CarlaSimulator():
         self.exec_time_sim = 0
         self.exec_time_control = 0
 
-        # if self.enable_animation:
-        #     self.ani = AnimateVehicle(
-        #         dt=self.model.dt, draw_rate=0.1
-        #     )
-        #     self.ani_data = AnimationData()
-        #     self.ani_data.laps_max = self.laps_max
-        #     if self.scenario.reference:
-        #         self.ani_data.full_ref = self.scenario.reference.trajectory
-        #         self.ani_data.full_ref_length = self.ani_data.full_ref.s[-1]
-
         self.lap = 1
         self.ref_s_prev = 0
         self.step = 0
@@ -48,31 +39,7 @@ class CarlaSimulator():
         self.sim = None
         self.__collect_sim_data()
 
-        self.client = self.__connect_to_carla()
-        self.world = self.client.get_world()
-        self.vehicle = self.__get_vehicle()
-        print(self.vehicle)
-
-    @classmethod
-    def __connect_to_carla(cls):
-        """Connect to Carla as client and return object."""
-        client = carla.Client(cls.CARLA_HOST, cls.CARLA_PORT)
-        client.set_timeout(2.0)
-
-        return client
-
-    def __get_vehicle(self):
-        # bp_lib = self.world.get_blueprint_library()
-        # vehicle_bp = bp_lib.filter("mercedes*")[0]
-
-        # spawn_point = random.choice(self.world.get_map().get_spawn_points())
-        # vehicle = self.world.try_spawn_actor(vehicle_bp, spawn_point)
-
-        # vehicle.set_autopilot(True)
-        for i in self.world.get_actors():
-            if 'mercedes' in i.type_id:  # hardcoded
-                return i
-
+        self.vehicle = CarlaApi.get_ego_vehicle()
 
     def __count_laps(self, ctrl) -> bool:
         """Count driven laps and increment counter for termination.
@@ -133,6 +100,18 @@ class CarlaSimulator():
         info_string = f'Sim running ...  {t:4.2f}s /  {self.t_max}s [ﯩ: {self.lap} / {self.laps_max}]'
         print(info_string, end='\r')
 
+    def emergency_stop(self):
+        """Perform emergency stop until vehicle reaches standstill."""
+        while True:
+            self.vehicle.apply_control(carla.VehicleControl(brake=1))
+            sleep(0.1)
+
+            v = self.vehicle.get_velocity()
+            vehicle_vx = 3.6 * np.sqrt(v.x**2 + v.y**2 + v.z**2) / 2
+
+            if vehicle_vx < 0.01:
+                break
+
     def carla_interface(self, ctrl) -> np.ndarray:
         if ctrl:
             control = carla.VehicleControl()
@@ -143,6 +122,7 @@ class CarlaSimulator():
             return
 
         v = self.vehicle.get_velocity()
+
         return np.array([[
             self.vehicle.get_transform().location.x,
             self.vehicle.get_transform().location.y,
@@ -168,7 +148,7 @@ class CarlaSimulator():
                 # Calculate inputs and advance a time step
                 xk = self.carla_interface(None)
                 ctrl, ref = self.scenario.eval(t, xk)
-                print(ctrl)
+                # print(ctrl)
 
                 self.carla_interface(ctrl)
                 # xk = self.model.dxdt_nominal(xk, ctrl.uk)
@@ -186,13 +166,13 @@ class CarlaSimulator():
                 self.__collect_sim_data(t=t, xk=xk, ctrl=ctrl)
 
                 self.step += 1
-                if self.enable_animation:
-                    self.ani_data.assign_sim_data(
-                            t, self.step, ref, xk, ctrl, self.lap
-                        )
-                    self.ani.draw_next_frame(self.ani_data)
-                else:
-                    self.__show_progress(t)
+                # if self.enable_animation:
+                #     self.ani_data.assign_sim_data(
+                #             t, self.step, ref, xk, ctrl, self.lap
+                #         )
+                #     self.ani.draw_next_frame(self.ani_data)
+                # else:
+                self.__show_progress(t)
         finally:
             self.vehicle.apply_control(carla.VehicleControl())
 
@@ -262,4 +242,3 @@ class CarlaSimulator():
             self.scenario.reference.trajectory,
             sl
         )
-
