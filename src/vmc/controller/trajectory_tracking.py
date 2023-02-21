@@ -42,20 +42,21 @@ def localize_on_trajectory(t: Trajectory, p: Position, nrn: int = 5) -> float:
 
     Arguments
     ---------
-    `t` : Trajectory
+    t : Trajectory
         Trajectory with `n` nodes, each node containing all seven attributes.
-    `p` : Position
+    p : Position
         Ego position of vehicle.
-    `nrn` : int
+    nrn : int
         Number of relevant nodes, that are taken into consideration for calc.
         If start of trajectory is close to ego position, less `nrn` are needed.
         Default implementation ensures that.
 
     Return
     ------
-    `ref_s` : float
+    ref_s : float
         Traveled distance along trajectory, can be used to interpolate current
         reference point on trajectory.
+
     """
     pp = np.array([p.x, p.y])
     # plt.plot(pp[0], pp[1], marker="x")
@@ -221,21 +222,21 @@ class TrajTrackPID:
 
         return e_y, e_psi, e_vx
 
-    @classmethod
-    def eval(cls, **kwargs):
+    def eval(self, **kwargs):
         """Apply PID control to simulation.
 
         Arguments
         ---------
-        `state_vector`: ndarray
+        state_vector : ndarray
             Current system state.
-        `ref` : Trajectory
+        ref : Trajectory
             Current reference trajectory `ref`.
 
         Returns
         -------
-        `ctrl_out` : ControlOut
+        ctrl_out : ControlOut
             Contains `uk` and `err*`
+
         """
         xk = kwargs['state_vector']
         ref = kwargs['ref']
@@ -251,11 +252,11 @@ class TrajTrackPID:
             t=ref, p=Position(veh_x, veh_y)
         )
         ref_node = interpolate_node(ref, ref_s)
-        e_y, e_psi, e_vx = cls.__tracking_errors(
+        e_y, e_psi, e_vx = self.__tracking_errors(
             ref_node, veh_x, veh_y, veh_psi, veh_vx
         )
 
-        delta_v, ax = cls.__pid_ffw_control(cls, ref_node, e_y, e_psi, e_vx)
+        delta_v, ax = self.__pid_ffw_control(ref_node, e_y, e_psi, e_vx)
 
         return ControlOutput(
             np.array([[delta_v, ax]]).T, delta_v, ax, e_y, e_psi, e_vx, ref_s

@@ -40,6 +40,10 @@ class CarlaSimulator():
         self.__collect_sim_data()
 
         self.vehicle = CarlaApi.get_ego_vehicle()
+        self.carla_parse_vehicle_config()
+
+        self.client = CarlaApi.connect_to_server()
+        self.world = self.client.get_world()
 
     def __count_laps(self, ctrl) -> bool:
         """Count driven laps and increment counter for termination.
@@ -88,11 +92,8 @@ class CarlaSimulator():
             self.sim['ref_s'][k+1, :] = ctrl.ref_s
 
     def __trim_sim_data(self):
-        """Remove obsolete allocated sim data.
-
-        Happens, if simulation is terminated by maximum number of laps.
-        """
-        idx = self.lap_steps[-1]
+        """Remove obsolete allocated sim data."""
+        idx = self.lap_steps[-1] if len(self.lap_steps) > 0 else self.step
         for key, value in self.sim.items():
             self.sim[key] = value[1:idx, :, :] if len(value.shape) == 3 else value[1:idx, :]
 
@@ -100,40 +101,92 @@ class CarlaSimulator():
         info_string = f'Sim running ...  {t:4.2f}s /  {self.t_max}s [ﯩ: {self.lap} / {self.laps_max}]'
         print(info_string, end='\r')
 
-    def emergency_stop(self):
+    def carla_parse_vehicle_config(self) -> None:
+        """Parse configuration parameter of vehicle."""
+        # Max steering angle is needed to convert steering command
+        # to `carla.VehicleControl(steer=)` which is between -1 and 1.
+        physics_control = self.vehicle.get_physics_control()
+        self.max_steering_angle_deg = physics_control.wheels[0].max_steer_angle
+
+        assert physics_control.wheels[0].max_steer_angle == \
+            physics_control.wheels[1].max_steer_angle, \
+            f'Front tires have different max steering angle!'
+
+    def carla_apply_emergency_stop(self):
         """Perform emergency stop until vehicle reaches standstill."""
+        print('')
+
         while True:
-            self.vehicle.apply_control(carla.VehicleControl(brake=1))
+            self.vehicle.apply_control(
+                carla.VehicleControl(throttle=0, brake=1)
+            )
             sleep(0.1)
 
             v = self.vehicle.get_velocity()
             vehicle_vx = 3.6 * np.sqrt(v.x**2 + v.y**2 + v.z**2) / 2
 
+            print(f'Emergency braking: v={vehicle_vx:0.2f}\r', end='')
             if vehicle_vx < 0.01:
                 break
 
-    def carla_interface(self, ctrl) -> np.ndarray:
-        if ctrl:
-            control = carla.VehicleControl()
-            control.throttle = ctrl.ax/10 if ctrl.ax > 0 else 0
-            control.brake = ctrl.ax/10 if ctrl.ax < 0 else 0
-            control.steer = ctrl.delta_v * 180 / np.pi # degree at wheel
-            self.vehicle.apply_control(control)
-            return
+    def carla_set_vehicle_control(self, ctrl) -> None:
+        """Convert `ControlOutput` to `carla.VehicleControl`.
 
+        https://carla.readthedocs.io/en/latest/python_api/#methods_55
+
+        NOTE: Normally, we need a lookup table for `throttle` and `brake
+        command`, depending on the current speed and the desired ax, the
+        pedal position is determined. We would need to run some measurements
+        to obtain such a table. For the PID controller this should work
+        anyway. For the application of the MPC, we must obtain those tables
+        of implement PID controller here to control the ax of the vehicle.
+
+        TODO: PID controller for `throttle` and `brake command`.
+
+        The `steering command` must be calculate according to the maximum
+        steering angle.
+        """
+        throttle = ctrl.ax/1.5 if ctrl.ax > 0 else 0
+        brake = np.abs(ctrl.ax)/1.5 if ctrl.ax < 0 else 0
+        steer = np.rad2deg(ctrl.delta_v) / self.max_steering_angle_deg
+
+        self.vehicle.apply_control(
+            carla.VehicleControl(
+                throttle=throttle,
+                brake=brake,
+                steer=steer
+            )
+        )
+
+    def carla_get_vehicle_information(self) -> np.ndarray:
         v = self.vehicle.get_velocity()
-
+        a = self.vehicle.get_acceleration()
         return np.array([[
             self.vehicle.get_transform().location.x,
             self.vehicle.get_transform().location.y,
             self.vehicle.get_transform().rotation.yaw/180*np.pi-np.pi/2,
-            self.vehicle.get_angular_velocity().z,
-            (3.6 * np.sqrt(v.x**2 + v.y**2 + v.z**2))/2,
+            self.vehicle.get_angular_velocity().z/180*np.pi,  # supposed to be rad/s, but value does make any sense without deg2rad
+            np.sqrt(v.x**2 + v.y**2 + v.z**2),
             0
         ]]).T
 
+    def carla_draw_reference(self, ref):
+        """Draw reference trajectory on the road.
 
-# (3.6 * math.sqrt(v.x**2 + v.y**2 + v.z**2))
+        Arguments
+        ---------
+        ref : class Trajectory
+            Trajectory class with information for all nodes
+
+        """
+        for i in range(ref.x.shape[0] - 1):
+            self.world.debug.draw_arrow(
+                carla.Location(x=ref.x[i], y=ref.y[i], z=0),
+                carla.Location(x=ref.x[i+1], y=ref.y[i+1], z=0),
+                thickness=0.05,
+                life_time=0.25,
+                color=carla.Color(1, 0, 0, 0)
+            )
 
     def run(self):
         """Run simulation for `t_end` of scenario."""
@@ -146,35 +199,27 @@ class CarlaSimulator():
 
             while self.step < self.steps-1:
                 # Calculate inputs and advance a time step
-                xk = self.carla_interface(None)
+                xk = self.carla_get_vehicle_information()
                 ctrl, ref = self.scenario.eval(t, xk)
-                # print(ctrl)
 
-                self.carla_interface(ctrl)
-                # xk = self.model.dxdt_nominal(xk, ctrl.uk)
-                # print(self.world.tick(), self.carla_interface(0))
-                # xk = self.carla_interface()
+                self.carla_draw_reference(ref)
 
-                # print(self.world.tick())
+                self.carla_set_vehicle_control(ctrl)
 
                 if self.__count_laps(ctrl):
-                    self.__trim_sim_data()
                     break
 
                 xk = np.array(xk)  # convert from CasADi data type
-                t = (self.step+1)*self.model.dt
+                t = (self.step+1) * self.model.dt
                 self.__collect_sim_data(t=t, xk=xk, ctrl=ctrl)
 
                 self.step += 1
-                # if self.enable_animation:
-                #     self.ani_data.assign_sim_data(
-                #             t, self.step, ref, xk, ctrl, self.lap
-                #         )
-                #     self.ani.draw_next_frame(self.ani_data)
-                # else:
                 self.__show_progress(t)
+
+                self.world.wait_for_tick()
         finally:
-            self.vehicle.apply_control(carla.VehicleControl())
+            self.__trim_sim_data()
+            self.carla_apply_emergency_stop()
 
     def show_states_and_input(self):
         """Visualize results of simulation.

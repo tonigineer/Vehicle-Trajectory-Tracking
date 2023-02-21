@@ -13,17 +13,8 @@ from vmc.simulation import CarlaSimulator, Scenario
 from vmc.trajectories import ReferencePath
 
 
-def main():
-    """Exemplary simulation of a PID with Carla as Simulator."""
-    TRACK_FILEPATH = './examples/carla/tracks/Along_The_Ring_01g_01g_30.json'
-    N_NODES = 12
-
-    scenario = Scenario(
-        TrajTrackPID(),
-        ReferencePath(TRACK_FILEPATH, N_NODES)
-    )
-
-    # Prepare Carla Simulator
+def prepare_carla():
+    """Start Carla Server, spawn vehicle and launch monitor."""
     if not CarlaApi.server_is_running():
         screen_w, screen_h = CarlaApi.get_full_resolution()
 
@@ -43,46 +34,50 @@ def main():
 
         sleep(3)
 
+
+def main():
+    """Exemplary simulation of a PID with Carla as Simulator."""
+    TRACK_FILEPATH = './examples/carla/tracks/Along_The_Ring_03g_04g_68.json'
+    TRACK_FILEPATH = './examples/carla/tracks/Along_The_Ring_03g_06g_75.json'
+    TRACK_FILEPATH = './examples/carla/tracks/Along_The_Ring_02g_08g_81.json'
+    # TRACK_FILEPATH = './examples/carla/tracks/Along_The_Ring_02g_10g_87.json'
+    N_NODES = 20
+
+    scenario = Scenario(
+        TrajTrackPID(),
+        ReferencePath(TRACK_FILEPATH, N_NODES)
+    )
+
     # Spawn vehicle at fifth node of full trajectory.
     # NOTE: heading angle offset of 90deg between Carla and trajectory
-    starting_node = scenario.reference.trajectory.get_nodes(5)
+    starting_node = scenario.reference.trajectory.get_nodes(10)
     spawn_point = carla.Transform(
         carla.Location(x=starting_node.x, y=starting_node.y, z=.6),
         carla.Rotation(roll=0, pitch=0, yaw=np.rad2deg(starting_node.psi) + 90)
     )
     CarlaApi.respawn_ego_vehicle(spawn_point)
 
-    scenario.controller.kp_e_psi = 0
-    scenario.controller.kp_e_y = 0.01
-    scenario.controller.ki_e_y = 0.0
-    scenario.controller.kd_e_y = 0.0
-
+    # Set sample time to 20 Hz. 100 Hz are not possible in real time.
     fs_veh_model = FSVehSingleTrack()
+    fs_veh_model.dt = 0.05
+    CarlaApi.set_fixed_delta_seconds(fs_veh_model.dt)
 
     Sim = CarlaSimulator(model=fs_veh_model, scenario=scenario)
 
-    #             carla.Transform(
-    #             carla.Location(x=1, y=1, z=1),
-    #             carla.Rotation(roll=0, pitch=0, yaw=-90)
-    #         )# Carla
+    # Controller parameter
+    Sim.scenario.controller.kp_e_y = 0.4
+    Sim.scenario.controller.ki_e_y = 0.1
+    Sim.scenario.controller.kd_e_y = 0.05
+    Sim.scenario.controller.kp_e_psi = 0.05
+    Sim.scenario.controller.kp_vx = 0.5
 
-
-    # spawn_point = carla.Transform(carla.Location(-7.269806349,-68.79465062,0.6),carla.Rotation(0,180,0))
-    # CarlaApi.start_server()
-    # sleep(5)
-    #     # Arrange windows
-    #     display_manager.render()  # render empty to show window for arrangement
-    #     cls._arrange_windows([
-    #         ('pygame window', 1, 1081, 1920, 1080),
-    #         ('CarlaUE4', 1, 1, 1920, 1080*0.875)
-    #     ])
     try:
         Sim.run()
     finally:
-        Sim.emergency_stop()
         Sim.show_states_and_input()
-        # CarlaApi.respawn_ego_vehicle(spawn_point)
+        CarlaApi.respawn_ego_vehicle(spawn_point)
 
 
 if __name__ == "__main__":
+    # prepare_carla()
     main()

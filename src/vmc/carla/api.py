@@ -288,7 +288,7 @@ class CarlaApi:
         >>> CarlaApi.kill_server()
 
         """
-        if cls.server_is_running():
+        if not cls.server_is_running():
             return
 
         if platform.system() == 'Windows':
@@ -479,8 +479,11 @@ class CarlaApi:
             if cls.EGO_VEHICLE in actor.type_id:
                 return actor
 
+        raise ValueError(f'Could not get ego_vehicle `{cls.EGO_VEHICLE}`')
+
     @classmethod
     def respawn_ego_vehicle(cls, spawn_point: carla.Transform) -> None:
+        """Move ego vehicle to desired position with orientation."""
         cls.get_ego_vehicle().set_transform(spawn_point)
 
     @staticmethod
@@ -521,6 +524,19 @@ class CarlaApi:
         world = client.get_world()
         return world.get_map().name.split('/')[-1]
 
+    @classmethod
+    def set_fixed_delta_seconds(cls, ts: float) -> None:
+        """Set server sample time."""
+        client = cls.connect_to_server()
+        world = client.get_world()
+        settings = world.get_settings()
+        # settings.synchronous_mode = True
+        settings.fixed_delta_seconds = ts
+        world.apply_settings(settings)
+
+        settings = world.get_settings()
+        print(f'[SERVER] fixed_delta_seconds = {settings.fixed_delta_seconds}')
+
 
 def main():
     """Call functionality for development and testing."""
@@ -539,11 +555,11 @@ def main():
     )
 
     sleep(3)
-    spawn_point = carla.Transform(
-        carla.Location(x=1, y=1, z=1),
-        carla.Rotation(roll=0, pitch=0, yaw=-90)
-    )
-    CarlaApi.respawn_ego_vehicle(spawn_point)
+    # spawn_point = carla.Transform(
+    #     carla.Location(x=1, y=1, z=1),
+    #     carla.Rotation(roll=0, pitch=0, yaw=-90)
+    # )
+    # CarlaApi.respawn_ego_vehicle(spawn_point)
 
 
 if __name__ == '__main__':
