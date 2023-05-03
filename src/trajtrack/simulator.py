@@ -10,6 +10,8 @@ from trajtrack.vehicle_models import Vehicle, BicycleModel
 from trajtrack.controller import Controller, ControlOutput
 from trajtrack.planner import Tracks, Position, Reference
 
+from trajtrack.visualization import Evaluation, ScatterEntry, SubplotLayout
+
 
 class Simulator:
     """Wrapping class for whole simulation."""
@@ -23,41 +25,80 @@ class Simulator:
 
         self.simulation = Simulation(vehicle)
 
-    def run(self):
-        """Evoke main simulation loop.
+    def _simulate_step(self):
+        """Evoke full workflow of one simulation step."""
+        reference = self.scenario.update(
+            self.simulation.vehicle_position
+        )
+        controller_output = self.controller.apply(
+            self.simulation.vehicle_position,
+            reference
+        )
+        self.simulation.update(
+            controller_output,
+            reference
+        )
+        self._show_verbose()
 
-        Get reference, calculate control output and
-        update simulation.
-        """
+    def run(self):
+        """Evoke main simulation loop wrapper."""
         self.simulation.prepare(
             self.scenario.initial_node
         )
         try:
             while not self.scenario.is_terminated:
-                reference = self.scenario.update(
-                    self.simulation.vehicle_position
-                )
-                controller_output = self.controller.apply(
-                    self.simulation.vehicle_position,
-                    reference
-                )
-
-                self.simulation.update(
-                    controller_output,
-                    reference
-                )
-        except KeyboardInterrupt:
-            print(' User terminated simulation.')
+                self._simulate_step()
         finally:
             self.simulation.post_processing()
+            self.show_results()
+
+    def _show_verbose(self):
+        print(
+            f'\r{self.simulation.step_duration*1000:0.5f} ms at vx: ' +
+            f'{self.simulation.vehicle_state.flatten()[4]:0.1f} m/s',
+            end=""
+        )
 
     def show_results(self):
         """Visualize simulation results."""
-        print('Plots of simulation and that stuff')
+        # First plot
+        layout = SubplotLayout("Tracking")
+        veh_x = np.array(self.sim_data['x'].values.tolist()).flatten()
+        veh_y = np.array(self.sim_data['y'].values.tolist()).flatten()
+
+        data = [
+            ScatterEntry(veh_x, veh_y, "Vehicle path", "Position in x [m]", "Position in y [m]")
+        ]
+
+        Evaluation.subplots(data, layout, columns=1)
+
+        # Second plot
+        layout = SubplotLayout("Vehicle state")
+        sim_t = np.array(self.sim_data['t'].values.tolist()).flatten()
+        veh_vx = np.array(self.sim_data['vx'].values.tolist()).flatten()
+        veh_beta = np.array(self.sim_data['beta'].values.tolist()).flatten()
+        veh_psi = np.array(self.sim_data['psi'].values.tolist()).flatten()
+
+        data = [
+            ScatterEntry(sim_t, veh_vx, "Side slip angle", "Time [s]", "Side slip angle in [rad]"),
+            ScatterEntry(sim_t, veh_beta, "Velocity", "Time [s]", "Velocity [m/s]"),
+            ScatterEntry(sim_t, veh_psi, "Heading", "Time [s]", "Heading [rad]")
+        ]
+
+        Evaluation.subplots(data, layout, columns=2)
+
+    @property
+    def sim_data(self):
+        """Return full simulation data."""
+        return self.simulation.sim_data
 
 
 class Simulation:
-    """Class to handle simulation steps."""
+    """Class to handle simulation of vehicle.
+
+    This include advancing simulation one step further and
+    recording all simulation data.
+    """
 
     dt = 0.1  # seconds
 
@@ -104,7 +145,9 @@ class Simulation:
         # print(f'\r{perf_counter() - start:0.6f}', end='')
 
     def _record_data(self, ctrl_out: np.ndarray, ref: np.ndarray):
+        kappa = 1  # TODO: kappa from ref needed
         data = {
+            't': self._t,
             'x': self._state[0],
             'y': self._state[1],
             'psi': self._state[2],
@@ -113,13 +156,15 @@ class Simulation:
             'vy': self._state[5],
             'ctrl_delta_v': ctrl_out[0],
             'ctrl_ax': ctrl_out[1],
+            'ay': self._state[4]*self._state[4] * kappa,
+            'beta': np.tan(self._state[5]/self._state[4])
         }
 
         # Add reference
-        ref_attributes = ['x', 'y', 's', 'kappa', 'psi', 'vx', 'ax']
-        for k in range(ref.shape[0]):
-            for i in range(ref.shape[2]):
-                data[f'{ref_attributes[k]}{i}'] = ref[k][0][i]
+        # ref_attributes = ['x', 'y', 's', 'kappa', 'psi', 'vx', 'ax']
+        # for k in range(ref.shape[0]):
+        #     for i in range(ref.shape[2]):
+        #         data[f'{ref_attributes[k]}{i}'] = ref[k][0][i]
 
         self._data_list.append(data)
 
@@ -137,12 +182,17 @@ class Simulation:
         return Position(self._state[0], self._state[1])
 
     @property
+    def vehicle_state(self):
+        """Return current position of vehicle."""
+        return self._state
+
+    @property
     def step_duration(self):
         """Return current position of vehicle."""
         return self._step_duration
 
     @property
-    def simulation_data(self):
+    def sim_data(self):
         """Return current position of vehicle."""
         return self._data
 

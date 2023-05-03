@@ -1,2 +1,6 @@
 casadi
 numpy
+pandas
+matplotlib
+plotly
+dash
