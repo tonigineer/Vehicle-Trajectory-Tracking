@@ -156,9 +156,9 @@ class BicycleModel(BaseModel):
 
         # Longitudinal modeling
         # Only applying drag and roll resistance to accel command.
-        ax_retard = +RHO/2 * self.A * self.cw * vx**2 + \
+        Fx_retard = RHO/2 * self.A * self.cw * vx**2 + \
             self.f_roll * self.m * GRAVITY
-        ax -= ax_retard/self.m
+        ax -= (Fx_retard/self.m * cs.fmin(1, cs.fmax(vx, 0)))
         # TODO: vxp = ax is not suitable for high dynamics, because
         # tires may be saturated!
 
